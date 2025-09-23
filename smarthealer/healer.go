@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/Smart-Software-Testing-Solutions-Opkey/pcloudy-smart-healer/smarthealer/config"
-	"github.com/Smart-Software-Testing-Solutions-Opkey/pcloudy-smart-healer/smarthealer/generator"
+	"github.com/Smart-Software-Testing-Solutions-Opkey/pcloudy-smart-healer/smarthealer/intelligence"
 	"github.com/Smart-Software-Testing-Solutions-Opkey/pcloudy-smart-healer/smarthealer/page"
 	"github.com/Smart-Software-Testing-Solutions-Opkey/pcloudy-smart-healer/smarthealer/platform"
 	"github.com/Smart-Software-Testing-Solutions-Opkey/pcloudy-smart-healer/smarthealer/retrieval"
@@ -32,7 +32,7 @@ type ResolveOptions struct {
 
 type Healer struct {
 	cfg           config.Config
-	smartGen      generator.SmartGenerator
+	intelSys      intelligence.IntelligenceSystem
 	pageStore     store.PageStore
 	locatorStore  store.LocatorStore
 	pageRetriever retrieval.PageRetriever
@@ -142,9 +142,6 @@ type Candidate struct {
 }
 
 func (h *Healer) getCandidateLocators(ctx context.Context, info LocatorInfo, mode retrieval.ComparisionMode) (*Candidate, error) {
-	//? should it be candidate page or candidate pages
-	//? most commonly it should only be candidate page and not pages
-	//? needs further verification
 	candidatePage, err := h.pageRetriever.RetrieveCandidatePages(ctx, retrieval.RetereivalOptions{
 		ContextId: info.ContextId,
 		B64Png:    info.B64Png,
@@ -191,7 +188,7 @@ func (h *Healer) generateLocator(ctx context.Context, info LocatorInfo, pageId i
 		return "", err
 	}
 
-	return h.smartGen.GenerateLocator(ctx, desc, info.PageSource)
+	return h.intelSys.GenerateLocator(ctx, desc, info.PageSource)
 }
 
 func (h *Healer) isNewEntry(ctx context.Context, info LocatorInfo) (bool, error) {
@@ -255,7 +252,7 @@ func (h *Healer) generateLocatorDescription(ctx context.Context, locatorId, page
 		return err
 	}
 
-	desc, err := h.smartGen.GenerateElementDescription(ctx, pageSrcInfo.PageSource, elemSrc)
+	desc, err := h.intelSys.GenerateElementDescription(ctx, pageSrcInfo.PageSource, elemSrc)
 	if err != nil {
 		return err
 	}

@@ -1,8 +1,10 @@
-package generator
+package intelligence
 
 import "context"
 
-type SmartGenerator interface {
+type IntelligenceSystem interface {
 	GenerateElementDescription(ctx context.Context, root, elem string) (string, error)
 	GenerateLocator(ctx context.Context, desc, root string) (string, error)
+
+	CompareScreenShot(ctx context.Context, img1, img2 string) (bool, error)
 }
