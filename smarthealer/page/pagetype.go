@@ -9,14 +9,31 @@ const (
 	HTMLPageType
 )
 
+const (
+	xmlString     = "XMLPageType"
+	htmlString    = "HTMLPageType"
+	invalidString = "Invalid-PageType"
+)
+
 func (p PageType) String() string {
 	switch p {
 	case XMLPageType:
-		return "XMLPageType"
+		return xmlString
 	case HTMLPageType:
-		return "HTMLPageType"
+		return htmlString
 	default:
-		return "Invalid-PageType"
+		return invalidString
+	}
+}
+
+func NewPageTypeFromString(s string) PageType {
+	switch s {
+	case xmlString:
+		return XMLPageType
+	case htmlString:
+		return HTMLPageType
+	default:
+		return PageType(-1)
 	}
 }
 
