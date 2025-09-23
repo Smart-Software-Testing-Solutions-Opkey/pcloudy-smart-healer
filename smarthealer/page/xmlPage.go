@@ -1,7 +1,6 @@
 package page
 
 import (
-	"errors"
 	"fmt"
 	"io"
 
@@ -28,7 +27,7 @@ func NewXMLPage(r io.Reader) (*xmlPage, error) {
 func (p *xmlPage) IsValidXPath(xpath string) (bool, error) {
 	elem, err := xmlquery.Query(p.root, xpath)
 	if err != nil {
-		return false, errors.Join(ErrInvalidXPath, err)
+		return false, fmt.Errorf("%w: %w", err, ErrInvalidXPath)
 	}
 	return elem != nil, nil
 }
@@ -42,5 +41,10 @@ func (p *xmlPage) PageType() PageType {
 }
 
 func (p *xmlPage) GetElementSrc(xpath string) (string, error) {
-	return "", errors.ErrUnsupported
+	n, err := xmlquery.Query(p.root, xpath)
+	if err != nil {
+		return "", fmt.Errorf("%w: %w", err, ErrInvalidXPath)
+	}
+
+	return n.OutputXML(true), nil
 }

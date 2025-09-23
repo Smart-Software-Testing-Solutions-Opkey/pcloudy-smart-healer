@@ -43,5 +43,10 @@ func (p *htmlPage) PageType() PageType {
 }
 
 func (p *htmlPage) GetElementSrc(xpath string) (string, error) {
-	return "", errors.ErrUnsupported
+	n, err := htmlquery.Query(p.root, xpath)
+	if err != nil {
+		return "", fmt.Errorf("%w: %w", err, ErrInvalidXPath)
+	}
+
+	return htmlquery.OutputHTML(n, true), nil
 }
