@@ -47,13 +47,12 @@ func NewHealer(cfg config.Config) *Healer {
 func (h *Healer) ResolveLocator(ctx context.Context, info LocatorInfo, opt ResolveOptions) (string, error) {
 	conformLocatorInfo(&info)
 
-	// is it a new entry
-	ok, err := h.isNewEntry(ctx, info)
+	candidate, err := h.getCandidateLocators(ctx, info, opt.ComparisionMode)
 	if err != nil {
-		return "", errors.Join(ErrResolveFailed, err)
+		return "", err
 	}
 
-	if ok {
+	if len(candidate.Locators) == 0 {
 		r, err := h.handleNewEntry(ctx, info)
 		if err != nil {
 			err = fmt.Errorf("%w: %w", err, ErrResolveFailed)
@@ -61,7 +60,7 @@ func (h *Healer) ResolveLocator(ctx context.Context, info LocatorInfo, opt Resol
 		return r, err
 	}
 
-	r, err := h.handleExistingEntry(ctx, info, opt)
+	r, err := h.handleExistingEntry(ctx, info, candidate)
 	if err != nil {
 		err = fmt.Errorf("%w: %w", err, ErrResolveFailed)
 	}
@@ -94,24 +93,18 @@ func (h *Healer) handleNewEntry(ctx context.Context, info LocatorInfo) (string, 
 	return info.XPath, nil
 }
 
-func (h *Healer) handleExistingEntry(ctx context.Context, info LocatorInfo, opt ResolveOptions) (string, error) {
+func (h *Healer) handleExistingEntry(ctx context.Context, info LocatorInfo, candidate *Candidate) (string, error) {
 	page, err := page.NewPage(info.PageSource, info.PageType)
-	if err != nil {
-		return "", err
-	}
-
-	// candidate locators are from db
-	locators, err := h.getCandidateLocators(ctx, info, opt.ComparisionMode)
 	if err != nil {
 		return "", err
 	}
 
 	// check if any of the locators we have
 	// stored works
-	for _, locator := range locators.Locators {
+	for _, locator := range candidate.Locators {
 		ok, err := page.IsValidXPath(locator)
 		if err != nil {
-			// this is critical error, we expect all the xpath to be valid xpaths
+			// ! this is critical error, we expect all the xpath to be valid xpaths
 			// todo: add some sort of way to inform we ran into critical error
 			continue
 		}
@@ -123,13 +116,13 @@ func (h *Healer) handleExistingEntry(ctx context.Context, info LocatorInfo, opt 
 	// non of the stored locators work
 
 	// generate a new locator
-	locator, err := h.generateLocator(ctx, info, locators.PageId)
+	locator, err := h.generateLocator(ctx, info, candidate.PageId)
 	if err != nil {
 		return "", err
 	}
 
 	// add the locator to the database
-	if err := h.registerLocator(ctx, locator, locators.PageId); err != nil {
+	if err := h.registerLocator(ctx, locator, candidate.PageId); err != nil {
 		return "", err
 	}
 
@@ -150,6 +143,13 @@ func (h *Healer) getCandidateLocators(ctx context.Context, info LocatorInfo, mod
 		Platform:  info.Platform,
 	}, mode)
 	if err != nil {
+		if errors.Is(err, retrieval.ErrNoSimilarPage) {
+			return &Candidate{
+				PageId:   -1,
+				Locators: []string{},
+			}, nil
+		}
+
 		return nil, err
 	}
 
@@ -189,10 +189,6 @@ func (h *Healer) generateLocator(ctx context.Context, info LocatorInfo, pageId i
 	}
 
 	return h.intelSys.GenerateLocator(ctx, desc, info.PageSource)
-}
-
-func (h *Healer) isNewEntry(ctx context.Context, info LocatorInfo) (bool, error) {
-	return h.pageStore.CheckPage(ctx, info.ProjectId, info.XPath, info.ContextId)
 }
 
 type EntryId struct {

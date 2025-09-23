@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/Smart-Software-Testing-Solutions-Opkey/pcloudy-smart-healer/smarthealer/intelligence"
 	"github.com/Smart-Software-Testing-Solutions-Opkey/pcloudy-smart-healer/smarthealer/platform"
 	"github.com/Smart-Software-Testing-Solutions-Opkey/pcloudy-smart-healer/smarthealer/store"
 )
@@ -17,10 +18,14 @@ const (
 	ScreenshotComparisionMode
 )
 
-var ErrRetrievalFailed = errors.New("failed to retrieve candidate pages")
+var (
+	ErrRetrievalFailed = errors.New("failed to retrieve candidate pages")
+	ErrNoSimilarPage   = errors.New("failed to find any similar page")
+)
 
 type PageRetriever struct {
 	pageStore store.PageStore
+	intel     intelligence.IntelligenceSystem
 }
 
 func NewPageRetriever(pageStore store.PageStore) *PageRetriever {
@@ -45,7 +50,7 @@ func (p *PageRetriever) RetrieveCandidatePages(ctx context.Context, opt Retereiv
 		case platform.AndroidPlatform, platform.WebPlatform:
 			mode = ManualComparisionMode
 		default:
-			return 0, fmt.Errorf("invalid platform specified: %w", ErrRetrievalFailed)
+			return -1, fmt.Errorf("invalid platform specified: %w", ErrRetrievalFailed)
 		}
 	}
 
@@ -65,14 +70,55 @@ func (p *PageRetriever) RetrieveCandidatePages(ctx context.Context, opt Retereiv
 		}
 		return r, err
 	default:
-		return 0, fmt.Errorf("invalid comparision mode provided: %w", ErrRetrievalFailed)
+		return -1, fmt.Errorf("invalid comparision mode provided: %w", ErrRetrievalFailed)
 	}
 }
 
 func (p *PageRetriever) usingContextID(ctx context.Context, opt RetereivalOptions) (int, error) {
-	return 0, nil
+	r, err := p.pageStore.GetFirstPageWithContext(ctx, opt.ProjectId, opt.Locator, opt.ContextId)
+	if err != nil {
+		if errors.Is(err, store.ErrEmptyData) {
+			return -1, ErrNoSimilarPage
+		}
+		return -1, err
+	}
+
+	return r, nil
 }
 
 func (p *PageRetriever) usingScreenShot(ctx context.Context, opt RetereivalOptions) (int, error) {
-	return 0, nil
+	potentialPages, err := p.pageStore.GetPages(ctx, opt.ProjectId, opt.Locator)
+	if err != nil {
+		return -1, err
+	}
+
+	// early return if we have only one page to bypass expensive screenshot comparision
+	// todo: is this valid ?
+	if len(potentialPages) == 1 {
+		return potentialPages[0], nil
+	}
+
+	for _, pp := range potentialPages {
+		storedPng, err := p.pageStore.GetPagePNG(ctx, pp)
+		if err != nil {
+			// todo: report to user that there was an error here somehow
+			continue
+		}
+
+		ok, err := p.compareSS(ctx, storedPng, opt.B64Png)
+		if err != nil {
+			// todo: report to user that there was an error here somehow
+			continue
+		}
+
+		if ok {
+			return pp, nil
+		}
+	}
+
+	return -1, ErrNoSimilarPage
+}
+
+func (p *PageRetriever) compareSS(ctx context.Context, img1, img2 string) (bool, error) {
+	return p.intel.CompareScreenShot(ctx, img1, img2)
 }

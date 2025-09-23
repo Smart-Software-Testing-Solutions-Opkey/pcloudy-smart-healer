@@ -2,17 +2,23 @@ package store
 
 import (
 	"context"
+	"errors"
 
 	"github.com/Smart-Software-Testing-Solutions-Opkey/pcloudy-smart-healer/smarthealer/page"
 	"github.com/Smart-Software-Testing-Solutions-Opkey/pcloudy-smart-healer/smarthealer/platform"
 )
 
+var ErrEmptyData = errors.New("no data with given query")
+
 type PageStore interface {
 	Add(ctx context.Context, entry PageEntry) (int, error)
 
-	CheckPage(ctx context.Context, projectId, locator, contextId string) (bool, error)
-
 	GetPageSourceInfo(ctx context.Context, pageId int) (PageSrcInfo, error)
+
+	GetPagePNG(ctx context.Context, pageId int) (string, error)
+
+	GetFirstPageWithContext(ctx context.Context, projectId, locator, contextId string) (int, error)
+	GetPages(ctx context.Context, projectId, locator string) ([]int, error)
 }
 
 type LocatorStore interface {
