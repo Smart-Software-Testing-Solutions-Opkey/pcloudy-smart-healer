@@ -1,6 +1,14 @@
 package intelligence
 
-import "context"
+import (
+	"context"
+	"errors"
+)
+
+var (
+	ErrDescriptionGenerationFailed = errors.New("failed to generate element description")
+	ErrSSComparisionFailed         = errors.New("failed to compare screenshots")
+)
 
 type IntelligenceSystem interface {
 	GenerateElementDescription(ctx context.Context, root, elem string) (string, error)
