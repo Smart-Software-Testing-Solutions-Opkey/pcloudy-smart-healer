@@ -259,7 +259,13 @@ func (h *Healer) generateLocatorDescription(ctx context.Context, locatorId, page
 func conformLocatorInfo(info *LocatorInfo) {
 	const defaultContextId = "DEFAULT_CONTEXT_ID"
 
+	const pngPrefix = "data:image/png;base64,"
+
 	if strings.TrimSpace(info.ContextId) == "" {
 		info.ContextId = defaultContextId
+	}
+
+	if !strings.HasPrefix(info.B64Png, pngPrefix) {
+		info.B64Png = fmt.Sprintf("%s%s", pngPrefix, info.B64Png)
 	}
 }
