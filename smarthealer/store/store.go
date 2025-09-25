@@ -31,6 +31,10 @@ type LocatorStore interface {
 	GetLocator(ctx context.Context, locatorId int) (string, error)
 }
 
+type DescriptionQueue interface {
+	Add(ctx context.Context)
+}
+
 type PageEntry struct {
 	PageSource string
 	Locator    string
