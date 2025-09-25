@@ -116,7 +116,7 @@ func (h *Healer) handleExistingEntry(ctx context.Context, info LocatorInfo, cand
 	// non of the stored locators work
 
 	// generate a new locator
-	locator, err := h.generateLocator(ctx, info, candidate.PageId)
+	locator, err := h.generateLocator(ctx, info, candidate.PageId, page)
 	if err != nil {
 		return "", err
 	}
@@ -182,13 +182,13 @@ func (h *Healer) registerLocator(ctx context.Context, locator string, pageId int
 	return nil
 }
 
-func (h *Healer) generateLocator(ctx context.Context, info LocatorInfo, pageId int) (string, error) {
+func (h *Healer) generateLocator(ctx context.Context, info LocatorInfo, pageId int, page page.Page) (string, error) {
 	desc, err := h.locatorStore.GetLatestPageDescription(ctx, pageId)
 	if err != nil {
 		return "", err
 	}
 
-	return h.intelSys.GenerateLocator(ctx, desc, info.PageSource)
+	return h.intelSys.GenerateLocator(ctx, desc, page, info.Platform)
 }
 
 type EntryId struct {

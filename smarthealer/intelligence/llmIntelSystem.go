@@ -7,8 +7,17 @@ import (
 	"fmt"
 
 	"github.com/Smart-Software-Testing-Solutions-Opkey/pcloudy-smart-healer/smarthealer/llm"
+	"github.com/Smart-Software-Testing-Solutions-Opkey/pcloudy-smart-healer/smarthealer/page"
+	"github.com/Smart-Software-Testing-Solutions-Opkey/pcloudy-smart-healer/smarthealer/platform"
 	"github.com/openai/openai-go/v2/shared"
+	lP "github.com/vertexcover-io/locatr/pkg"
+	lLlm "github.com/vertexcover-io/locatr/pkg/llm"
+	"github.com/vertexcover-io/locatr/pkg/mode"
+	"github.com/vertexcover-io/locatr/pkg/plugins"
+	"github.com/vertexcover-io/locatr/pkg/types"
 )
+
+var ErrLocatrCreationFailed = errors.New("failed to create locatr client")
 
 const descriptionGenerationPrompt = `
 You are an AI agent that is responsible for describing an element to a user. You are an experienced UX developer that is able to understand the
@@ -49,12 +58,14 @@ property called "result", gives boolean value if it is same or not.
 `
 
 type llmIntelSystem struct {
-	llm llm.LLM
+	llm    llm.LLM
+	apiKey string
 }
 
-func NewLLmIntelSystem(llm llm.LLM) *llmIntelSystem {
+func NewLLmIntelSystem(llm llm.LLM, apiKey string) *llmIntelSystem {
 	return &llmIntelSystem{
-		llm: llm,
+		llm:    llm,
+		apiKey: apiKey,
 	}
 }
 
@@ -92,14 +103,14 @@ func (l *llmIntelSystem) GenerateElementDescription(ctx context.Context, root, e
 
 	resp, err := l.llm.Completion(ctx, m, shared.ChatModelO3Mini, true)
 	if err != nil {
-		return "", fmt.Errorf("%w: %w", ErrDescriptionGenerationFailed, err)
+		return "", fmt.Errorf("%w: %w", err, ErrDescriptionGenerationFailed)
 	}
 
 	p := struct {
 		Summary string `json:"summary,omitempty"`
 	}{}
 	if err := json.Unmarshal([]byte(resp), &p); err != nil {
-		return "", fmt.Errorf("%w: %w", ErrDescriptionGenerationFailed, err)
+		return "", fmt.Errorf("%w: %w", err, ErrDescriptionGenerationFailed)
 	}
 
 	return p.Summary, nil
@@ -139,7 +150,7 @@ func (l *llmIntelSystem) CompareScreenShot(ctx context.Context, img1, img2 strin
 
 	resp, err := l.llm.Completion(ctx, m, shared.ChatModelGPT4o2024_11_20, true)
 	if err != nil {
-		return false, fmt.Errorf("%w: %w", ErrSSComparisionFailed, err)
+		return false, fmt.Errorf("%w: %w", err, ErrSSComparisionFailed)
 	}
 
 	p := struct {
@@ -147,12 +158,84 @@ func (l *llmIntelSystem) CompareScreenShot(ctx context.Context, img1, img2 strin
 		Result bool   `json:"result,omitempty"`
 	}{}
 	if err := json.Unmarshal([]byte(resp), &p); err != nil {
-		return false, fmt.Errorf("%w: %w", ErrSSComparisionFailed, err)
+		return false, fmt.Errorf("%w: %w", err, ErrSSComparisionFailed)
 	}
 
 	return p.Result, nil
 }
 
-func (l *llmIntelSystem) GenerateLocator(ctx context.Context, desc, root string) (string, error) {
-	return "", errors.ErrUnsupported
+func (l *llmIntelSystem) GenerateLocator(ctx context.Context, desc string, root page.Page, platform platform.Platform) (string, error) {
+	locatr, err := createLocatr(locatrOpts{
+		apiKey:   l.apiKey,
+		page:     root,
+		pageType: pageTypeConverter(root.PageType()),
+		platform: platformConverter(platform),
+	})
+	if err != nil {
+		return "", fmt.Errorf("%w: %w", err, ErrNewLocatorGenerationFailed)
+	}
+
+	comp, err := locatr.Locate(ctx, desc)
+	if err != nil {
+		return "", fmt.Errorf("%w: %w", err, ErrNewLocatorGenerationFailed)
+	}
+
+	if len(comp.Locators) < 1 {
+		return "", fmt.Errorf("failed to generate any valid locators: %w", ErrNewLocatorGenerationFailed)
+	}
+	lctr := comp.Locators[0]
+
+	if comp.LocatorType == types.CssSelectorType {
+		lctr = page.ConvertCssSelectorToXpath(lctr)
+	}
+	return lctr, err
+}
+
+type locatrOpts struct {
+	apiKey   string
+	page     page.Page
+	pageType plugins.PageType
+	platform plugins.Platform
+}
+
+func createLocatr(opts locatrOpts) (*lP.Locatr, error) {
+
+	plugin := plugins.NewRawTextPlugin(opts.page.String(), opts.pageType, opts.platform)
+
+	llmClient, err := lLlm.NewLLMClient(
+		lLlm.WithProvider(lLlm.OpenAI),
+		lLlm.WithAPIKey(opts.apiKey),
+		lLlm.WithModel(shared.ChatModelGPT4oMini),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", err, ErrLocatrCreationFailed)
+	}
+
+	locatr, err := lP.NewLocatr(plugin,
+		lP.WithLLMClient(llmClient),
+		lP.WithRerankerDisabled(),
+		lP.WithMode(&mode.DOMAnalysisMode{}),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", err, ErrLocatrCreationFailed)
+	}
+
+	return locatr, nil
+}
+
+func pageTypeConverter(p page.PageType) plugins.PageType {
+	if p == page.HTMLPageType {
+		return plugins.HTMLPageType
+	}
+	return plugins.XMLPageType
+}
+
+func platformConverter(p platform.Platform) plugins.Platform {
+	switch p {
+	case platform.AndroidPlatform:
+		return plugins.AndroidPlatform
+	case platform.IosPlatform:
+		return plugins.IosPlatform
+	}
+	return plugins.WebPlatform
 }
