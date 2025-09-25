@@ -20,23 +20,38 @@ type UnitOfWork struct {
 type StoreImpl[T any] func(*sqlx.Tx) T
 
 type UnitOfWorkFactory struct {
-	Db                      *sqlx.DB
+	db                      *sqlx.DB
+	pageStoreFactory        StoreImpl[PageStore]
+	locatorStoreFactory     StoreImpl[LocatorStore]
+	descriptionQueueFactory StoreImpl[DescriptionQueue]
+}
+
+type FactoryParams struct {
 	PageStoreFactory        StoreImpl[PageStore]
 	LocatorStoreFactory     StoreImpl[LocatorStore]
 	DescriptionQueueFactory StoreImpl[DescriptionQueue]
 }
 
+func NewUnitOfWorkFactory(db *sqlx.DB, p FactoryParams) UnitOfWorkFactory {
+	return UnitOfWorkFactory{
+		db:                      db,
+		pageStoreFactory:        p.PageStoreFactory,
+		locatorStoreFactory:     p.LocatorStoreFactory,
+		descriptionQueueFactory: p.DescriptionQueueFactory,
+	}
+}
+
 func (f *UnitOfWorkFactory) NewUnitOfWork(ctx context.Context) (*UnitOfWork, error) {
-	tx, err := f.Db.BeginTxx(ctx, &sql.TxOptions{})
+	tx, err := f.db.BeginTxx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create unit of work: %w", err)
 	}
 
 	return &UnitOfWork{
 		tx:               tx,
-		Pages:            f.PageStoreFactory(tx),
-		Locators:         f.LocatorStoreFactory(tx),
-		DescriptionQueue: f.DescriptionQueueFactory(tx),
+		Pages:            f.pageStoreFactory(tx),
+		Locators:         f.locatorStoreFactory(tx),
+		DescriptionQueue: f.descriptionQueueFactory(tx),
 	}, nil
 }
 

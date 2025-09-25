@@ -32,7 +32,10 @@ type LocatorStore interface {
 }
 
 type DescriptionQueue interface {
-	Add(ctx context.Context)
+	Add(ctx context.Context, locatorId, pageId int) error
+	Remove(ctx context.Context, locatorId, pageId int) error
+	Length(ctx context.Context) error
+	Get(ctx context.Context) (*DescriptionQueueEntry, error)
 }
 
 type PageEntry struct {
@@ -54,4 +57,9 @@ type LocatorEntry struct {
 type PageSrcInfo struct {
 	PageSource string
 	PageType   page.PageType
+}
+
+type DescriptionQueueEntry struct {
+	PageId    int
+	LocatorId int
 }
