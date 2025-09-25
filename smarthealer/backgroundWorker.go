@@ -35,6 +35,7 @@ func NewBGWorker(
 	if err != nil {
 		return nil, err
 	}
+	u.Rollback()
 
 	return &BackgroundWorker{
 		cfg:         cfg,
@@ -92,7 +93,7 @@ func (b *BackgroundWorker) processDescription(ctx context.Context, limiter *rate
 		}
 	}()
 
-	e, err := u.DescriptionQueue.GetLatest(ctx)
+	e, err := u.DescriptionQueue.GetOldestEntry(ctx)
 	if err != nil {
 		completed = false
 		return

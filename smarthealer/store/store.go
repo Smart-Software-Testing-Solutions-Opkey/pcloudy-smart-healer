@@ -35,7 +35,7 @@ type DescriptionQueue interface {
 	Add(ctx context.Context, locatorId, pageId int) error
 	Remove(ctx context.Context, locatorId, pageId int) error
 	Length(ctx context.Context) (int64, error)
-	GetLatest(ctx context.Context) (*DescriptionQueueEntry, error)
+	GetOldestEntry(ctx context.Context) (*DescriptionQueueEntry, error)
 }
 
 type PageEntry struct {
