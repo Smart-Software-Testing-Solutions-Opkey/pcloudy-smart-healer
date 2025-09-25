@@ -54,12 +54,15 @@ func NewHealer(
 	}
 }
 
-func (h *Healer) ResolveLocator(ctx context.Context, info LocatorInfo, opt ResolveOptions) (string, error) {
+func (h *Healer) ResolveLocator(ctx context.Context, info LocatorInfo, opt ResolveOptions, u *store.UnitOfWork) (string, error) {
 	conformLocatorInfo(&info)
 
-	u, err := h.uowFactory.NewUnitOfWork(ctx)
-	if err != nil {
-		return "", err
+	var err error
+	if u == nil {
+		u, err = h.uowFactory.NewUnitOfWork(ctx)
+		if err != nil {
+			return "", err
+		}
 	}
 	defer func() {
 		err = u.Rollback()

@@ -8,15 +8,45 @@ const (
 	WebPlatform
 )
 
+const (
+	andStr     = "Android"
+	iosStr     = "Ios"
+	webStr     = "Web"
+	invalidStr = "invalid platform"
+)
+
 func (p Platform) String() string {
 	switch p {
 	case AndroidPlatform:
-		return "Android"
+		return andStr
 	case IosPlatform:
-		return "Ios"
+		return iosStr
 	case WebPlatform:
-		return "Web"
+		return webStr
 	default:
-		return "invalid platform"
+		return invalidStr
 	}
+}
+
+func NewPlatformFromString(s string) Platform {
+	switch s {
+	case andStr:
+		return AndroidPlatform
+	case iosStr:
+		return IosPlatform
+	case webStr:
+		return WebPlatform
+	default:
+		return Platform(-1)
+	}
+}
+
+func (p Platform) MarshalJSON() ([]byte, error) {
+	return []byte(p.String()), nil
+}
+
+func (p *Platform) UnmarshalJSON(b []byte) error {
+	*p = NewPlatformFromString(string(b))
+
+	return nil
 }

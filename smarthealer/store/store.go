@@ -38,6 +38,13 @@ type DescriptionQueue interface {
 	GetOldestEntry(ctx context.Context) (*DescriptionQueueEntry, error)
 }
 
+type HealingQueue interface {
+	Add(ctx context.Context, infoJson, optJson string) error
+	Remove(ctx context.Context, queueId int) error
+	Length(ctx context.Context) (int64, error)
+	GetOldestEntry(ctx context.Context) (*HealingQueueEntry, error)
+}
+
 type PageEntry struct {
 	PageSource string
 	Locator    string
@@ -62,4 +69,10 @@ type PageSrcInfo struct {
 type DescriptionQueueEntry struct {
 	PageId    int
 	LocatorId int
+}
+
+type HealingQueueEntry struct {
+	Id       int64
+	InfoJson string
+	OptJson  string
 }

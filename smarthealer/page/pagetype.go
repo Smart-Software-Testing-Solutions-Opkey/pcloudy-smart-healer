@@ -1,6 +1,8 @@
 package page
 
-import "errors"
+import (
+	"errors"
+)
 
 type PageType int
 
@@ -38,3 +40,13 @@ func NewPageTypeFromString(s string) PageType {
 }
 
 var ErrInvalidPageType = errors.New("invalid page type provided")
+
+func (p PageType) MarshalJSON() ([]byte, error) {
+	return []byte(p.String()), nil
+}
+
+func (p *PageType) UnmarshalJSON(b []byte) error {
+	*p = NewPageTypeFromString(string(b))
+
+	return nil
+}

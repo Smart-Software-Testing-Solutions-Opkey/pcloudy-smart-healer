@@ -13,6 +13,7 @@ type UnitOfWork struct {
 	Pages            PageStore
 	Locators         LocatorStore
 	DescriptionQueue DescriptionQueue
+	HealingQueue     HealingQueue
 }
 
 // because the impls will all be interface
@@ -24,12 +25,14 @@ type UnitOfWorkFactory struct {
 	pageStoreFactory        StoreImpl[PageStore]
 	locatorStoreFactory     StoreImpl[LocatorStore]
 	descriptionQueueFactory StoreImpl[DescriptionQueue]
+	healingQueueFactory     StoreImpl[HealingQueue]
 }
 
 type FactoryParams struct {
 	PageStoreFactory        StoreImpl[PageStore]
 	LocatorStoreFactory     StoreImpl[LocatorStore]
 	DescriptionQueueFactory StoreImpl[DescriptionQueue]
+	HealingQueueFactory     StoreImpl[HealingQueue]
 }
 
 func NewUnitOfWorkFactory(db *sqlx.DB, p FactoryParams) UnitOfWorkFactory {
@@ -38,6 +41,7 @@ func NewUnitOfWorkFactory(db *sqlx.DB, p FactoryParams) UnitOfWorkFactory {
 		pageStoreFactory:        p.PageStoreFactory,
 		locatorStoreFactory:     p.LocatorStoreFactory,
 		descriptionQueueFactory: p.DescriptionQueueFactory,
+		healingQueueFactory:     p.HealingQueueFactory,
 	}
 }
 
@@ -52,6 +56,7 @@ func (f *UnitOfWorkFactory) NewUnitOfWork(ctx context.Context) (*UnitOfWork, err
 		Pages:            f.pageStoreFactory(tx),
 		Locators:         f.locatorStoreFactory(tx),
 		DescriptionQueue: f.descriptionQueueFactory(tx),
+		HealingQueue:     f.healingQueueFactory(tx),
 	}, nil
 }
 

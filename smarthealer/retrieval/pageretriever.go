@@ -18,6 +18,49 @@ const (
 	ScreenshotComparisionMode
 )
 
+const (
+	automaticCmpStr  = "Automatic"
+	manualCmpStr     = "Manual"
+	screenshotCmpStr = "Screenshot"
+	invalidCmpStr    = "invalid-comparision"
+)
+
+func (c ComparisionMode) String() string {
+	switch c {
+	case AutomaticComparisionMode:
+		return automaticCmpStr
+	case ManualComparisionMode:
+		return manualCmpStr
+	case ScreenshotComparisionMode:
+		return screenshotCmpStr
+	default:
+		return invalidCmpStr
+	}
+}
+
+func NewComparisionModeFromString(s string) ComparisionMode {
+	switch s {
+	case automaticCmpStr:
+		return AutomaticComparisionMode
+	case manualCmpStr:
+		return ManualComparisionMode
+	case screenshotCmpStr:
+		return ScreenshotComparisionMode
+	default:
+		return ComparisionMode(-1)
+	}
+}
+
+func (c ComparisionMode) MarshalJSON() ([]byte, error) {
+	return []byte(c.String()), nil
+}
+
+func (c *ComparisionMode) UnmarshalJSON(b []byte) error {
+	*c = NewComparisionModeFromString(string(b))
+
+	return nil
+}
+
 var (
 	ErrRetrievalFailed = errors.New("failed to retrieve candidate pages")
 	ErrNoSimilarPage   = errors.New("failed to find any similar page")

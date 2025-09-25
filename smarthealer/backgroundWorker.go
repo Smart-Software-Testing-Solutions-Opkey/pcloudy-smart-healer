@@ -2,7 +2,8 @@ package smarthealer
 
 import (
 	"context"
-	"time"
+	"encoding/json"
+	"fmt"
 
 	"github.com/Smart-Software-Testing-Solutions-Opkey/pcloudy-smart-healer/smarthealer/config"
 	"github.com/Smart-Software-Testing-Solutions-Opkey/pcloudy-smart-healer/smarthealer/intelligence"
@@ -17,7 +18,8 @@ type BackgroundWorker struct {
 	intelSystem intelligence.IntelligenceSystem
 	uowFactory  store.UnitOfWorkFactory
 
-	desSym *semaphore.Weighted
+	desSem  *semaphore.Weighted
+	healSem *semaphore.Weighted
 }
 
 func NewBGWorker(
@@ -31,7 +33,11 @@ func NewBGWorker(
 		return nil, err
 	}
 
-	len, err := u.DescriptionQueue.Length(ctx)
+	dLen, err := u.DescriptionQueue.Length(ctx)
+	if err != nil {
+		return nil, err
+	}
+	hlen, err := u.HealingQueue.Length(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -41,38 +47,123 @@ func NewBGWorker(
 		cfg:         cfg,
 		intelSystem: intel,
 		uowFactory:  uowF,
-		desSym:      semaphore.NewWeighted(len),
+		desSem:      semaphore.NewWeighted(dLen),
+		healSem:     semaphore.NewWeighted(hlen),
 	}, nil
-}
-
-func (b *BackgroundWorker) NotifyDescriptionPosted() {
-	b.desSym.Release(1)
 }
 
 const workCount = 1
 
-func (b *BackgroundWorker) ProcessDescriptionsBG(ctx context.Context) {
+func (b *BackgroundWorker) NotifyDescriptionPosted() {
+	b.desSem.Release(workCount)
+}
 
-	limit := rate.Every(1 * time.Second)
+func (b *BackgroundWorker) ProcessDescriptionsBG(ctx context.Context, limit rate.Limit) {
 
 	limiter := rate.NewLimiter(limit, 0)
 
 	for {
-		if err := b.desSym.Acquire(ctx, workCount); err != nil {
+		if err := b.desSem.Acquire(ctx, workCount); err != nil {
 			// ctx done was trigered
 			// exit out of loop
 			return
 		}
 
-		b.processDescription(ctx, limiter)
+		b.processWork(ctx, limiter, func() error {
+			return b.descriptionWork(ctx)
+		})
 	}
 }
 
-func (b *BackgroundWorker) processDescription(ctx context.Context, limiter *rate.Limiter) {
+func (b *BackgroundWorker) NotifyHealingPosted() {
+	b.healSem.Release(workCount)
+}
+
+func (b *BackgroundWorker) ProcessHealingBG(ctx context.Context, limit rate.Limit, healWork func(context.Context) error) {
+	limiter := rate.NewLimiter(limit, 0)
+
+	for {
+		if err := b.healSem.Acquire(ctx, workCount); err != nil {
+			// ctx done was trigered
+			// exit out of loop
+			return
+		}
+
+		b.processWork(ctx, limiter, func() error {
+			return healWork(ctx)
+		})
+	}
+}
+
+func (b *BackgroundWorker) HealWorkerFunc(
+	resolver func(context.Context, LocatorInfo, ResolveOptions, *store.UnitOfWork) (string, error),
+) func(context.Context) error {
+	return func(ctx context.Context) error {
+		// a work was acquired
+		u, err := b.uowFactory.NewUnitOfWork(ctx)
+		if err != nil {
+			return err
+		}
+		defer func() {
+			rollBackErr := u.Rollback()
+			if err != nil {
+				err = fmt.Errorf("%w: %w", err, rollBackErr)
+			} else {
+				err = rollBackErr
+			}
+		}()
+
+		e, err := u.HealingQueue.GetOldestEntry(ctx)
+		if err != nil {
+			return err
+		}
+
+		var info LocatorInfo
+		if err := json.Unmarshal([]byte(e.InfoJson), &info); err != nil {
+			return err
+		}
+
+		var opts ResolveOptions
+		if err := json.Unmarshal([]byte(e.OptJson), &opts); err != nil {
+			return err
+		}
+
+		_, err = resolver(ctx, info, opts, u)
+		if err != nil {
+			return err
+		}
+
+		return err
+	}
+}
+
+func (b *BackgroundWorker) descriptionWork(ctx context.Context) error {
+	// a work was acquired
+	u, err := b.uowFactory.NewUnitOfWork(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		err = u.Rollback()
+	}()
+
+	e, err := u.DescriptionQueue.GetOldestEntry(ctx)
+	if err != nil {
+		return err
+	}
+
+	if err := b.generateLocatorDescription(ctx, e.LocatorId, e.PageId, u); err != nil {
+		return err
+	}
+
+	return err
+}
+
+func (b *BackgroundWorker) processWork(ctx context.Context, limiter *rate.Limiter, work func() error) {
 	completed := true
 	defer func() {
 		if !completed {
-			b.desSym.Release(workCount)
+			b.desSem.Release(workCount)
 		}
 	}()
 
@@ -81,29 +172,10 @@ func (b *BackgroundWorker) processDescription(ctx context.Context, limiter *rate
 		return
 	}
 
-	// a work was acquired
-	u, err := b.uowFactory.NewUnitOfWork(ctx)
-	if err != nil {
+	if err := work(); err != nil {
 		completed = false
 		return
 	}
-	defer func() {
-		if err := u.Rollback(); err != nil {
-			completed = false
-		}
-	}()
-
-	e, err := u.DescriptionQueue.GetOldestEntry(ctx)
-	if err != nil {
-		completed = false
-		return
-	}
-
-	if err := b.generateLocatorDescription(ctx, e.LocatorId, e.PageId, u); err != nil {
-		completed = false
-		return
-	}
-
 }
 
 func (b *BackgroundWorker) generateLocatorDescription(ctx context.Context, locatorId, pageId int, u *store.UnitOfWork) error {
