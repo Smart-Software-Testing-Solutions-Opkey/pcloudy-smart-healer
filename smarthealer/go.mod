@@ -45,6 +45,6 @@ require (
 	github.com/antchfx/xmlquery v1.4.4
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
-	github.com/mattn/go-sqlite3 v1.14.22 // indirect
+	github.com/mattn/go-sqlite3 v1.14.22
 	golang.org/x/sync v0.17.0
 )

@@ -1,11 +1,10 @@
-package smarthealer
+package healer
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
 
-	"github.com/Smart-Software-Testing-Solutions-Opkey/pcloudy-smart-healer/smarthealer/config"
 	"github.com/Smart-Software-Testing-Solutions-Opkey/pcloudy-smart-healer/smarthealer/intelligence"
 	"github.com/Smart-Software-Testing-Solutions-Opkey/pcloudy-smart-healer/smarthealer/page"
 	"github.com/Smart-Software-Testing-Solutions-Opkey/pcloudy-smart-healer/smarthealer/store"
@@ -14,18 +13,16 @@ import (
 )
 
 type BackgroundWorker struct {
-	cfg         config.Config
 	intelSystem intelligence.IntelligenceSystem
-	uowFactory  store.UnitOfWorkFactory
+	uowFactory  *store.UnitOfWorkFactory
 
 	desSem  *semaphore.Weighted
 	healSem *semaphore.Weighted
 }
 
 func NewBGWorker(
-	cfg config.Config,
 	intel intelligence.IntelligenceSystem,
-	uowF store.UnitOfWorkFactory,
+	uowF *store.UnitOfWorkFactory,
 ) (*BackgroundWorker, error) {
 	ctx := context.Background()
 	u, err := uowF.NewUnitOfWork(ctx)
@@ -44,7 +41,6 @@ func NewBGWorker(
 	u.Rollback()
 
 	return &BackgroundWorker{
-		cfg:         cfg,
 		intelSystem: intel,
 		uowFactory:  uowF,
 		desSem:      semaphore.NewWeighted(dLen),
@@ -133,6 +129,10 @@ func (b *BackgroundWorker) HealWorkerFunc(
 			return err
 		}
 
+		if err := u.HealingQueue.Remove(ctx, e.Id); err != nil {
+			return err
+		}
+
 		return err
 	}
 }
@@ -153,6 +153,10 @@ func (b *BackgroundWorker) descriptionWork(ctx context.Context) error {
 	}
 
 	if err := b.generateLocatorDescription(ctx, e.LocatorId, e.PageId, u); err != nil {
+		return err
+	}
+
+	if err := u.DescriptionQueue.Remove(ctx, e.LocatorId, e.PageId); err != nil {
 		return err
 	}
 

@@ -1,4 +1,4 @@
-package smarthealer
+package healer
 
 import (
 	"context"
@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Smart-Software-Testing-Solutions-Opkey/pcloudy-smart-healer/smarthealer/config"
 	"github.com/Smart-Software-Testing-Solutions-Opkey/pcloudy-smart-healer/smarthealer/intelligence"
 	"github.com/Smart-Software-Testing-Solutions-Opkey/pcloudy-smart-healer/smarthealer/page"
 	"github.com/Smart-Software-Testing-Solutions-Opkey/pcloudy-smart-healer/smarthealer/platform"
@@ -31,22 +30,19 @@ type ResolveOptions struct {
 }
 
 type Healer struct {
-	cfg           config.Config
 	intelSys      intelligence.IntelligenceSystem
-	pageRetriever retrieval.PageRetriever
-	uowFactory    store.UnitOfWorkFactory
+	pageRetriever *retrieval.PageRetriever
+	uowFactory    *store.UnitOfWorkFactory
 	bg            *BackgroundWorker
 }
 
 func NewHealer(
-	cfg config.Config,
 	intel intelligence.IntelligenceSystem,
-	pageR retrieval.PageRetriever,
-	uowF store.UnitOfWorkFactory,
+	pageR *retrieval.PageRetriever,
+	uowF *store.UnitOfWorkFactory,
 	bg *BackgroundWorker,
 ) *Healer {
 	return &Healer{
-		cfg:           cfg,
 		intelSys:      intel,
 		pageRetriever: pageR,
 		uowFactory:    uowF,

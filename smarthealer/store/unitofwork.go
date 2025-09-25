@@ -35,8 +35,8 @@ type FactoryParams struct {
 	HealingQueueFactory     StoreImpl[HealingQueue]
 }
 
-func NewUnitOfWorkFactory(db *sqlx.DB, p FactoryParams) UnitOfWorkFactory {
-	return UnitOfWorkFactory{
+func NewUnitOfWorkFactory(db *sqlx.DB, p FactoryParams) *UnitOfWorkFactory {
+	return &UnitOfWorkFactory{
 		db:                      db,
 		pageStoreFactory:        p.PageStoreFactory,
 		locatorStoreFactory:     p.LocatorStoreFactory,

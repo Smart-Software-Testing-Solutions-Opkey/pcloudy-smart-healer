@@ -67,13 +67,14 @@ var (
 )
 
 type PageRetriever struct {
-	pageStore store.PageStore
-	intel     intelligence.IntelligenceSystem
+	uowF  *store.UnitOfWorkFactory
+	intel intelligence.IntelligenceSystem
 }
 
-func NewPageRetriever(pageStore store.PageStore) *PageRetriever {
+func NewPageRetriever(uowF *store.UnitOfWorkFactory, intel intelligence.IntelligenceSystem) *PageRetriever {
 	return &PageRetriever{
-		pageStore: pageStore,
+		uowF:  uowF,
+		intel: intel,
 	}
 }
 
@@ -97,17 +98,23 @@ func (p *PageRetriever) RetrieveCandidatePages(ctx context.Context, opt Retereiv
 		}
 	}
 
+	u, err := p.uowF.NewUnitOfWork(ctx)
+	if err != nil {
+		return -1, fmt.Errorf("failed to create unit of work: %w", ErrRetrievalFailed)
+	}
+	defer u.Rollback() // this is readonly transaction but needs cleanup
+
 	switch mode {
 	case AutomaticComparisionMode:
 		panic("RetrieveCandidatePages invalid state")
 	case ManualComparisionMode:
-		r, err := p.usingContextID(ctx, opt)
+		r, err := p.usingContextID(ctx, opt, u)
 		if err != nil {
 			err = fmt.Errorf("%w: %w", err, ErrRetrievalFailed)
 		}
 		return r, err
 	case ScreenshotComparisionMode:
-		r, err := p.usingScreenShot(ctx, opt)
+		r, err := p.usingScreenShot(ctx, opt, u)
 		if err != nil {
 			err = fmt.Errorf("%w: %w", err, ErrRetrievalFailed)
 		}
@@ -117,8 +124,8 @@ func (p *PageRetriever) RetrieveCandidatePages(ctx context.Context, opt Retereiv
 	}
 }
 
-func (p *PageRetriever) usingContextID(ctx context.Context, opt RetereivalOptions) (int, error) {
-	r, err := p.pageStore.GetFirstPageWithContext(ctx, opt.ProjectId, opt.Locator, opt.ContextId)
+func (p *PageRetriever) usingContextID(ctx context.Context, opt RetereivalOptions, u *store.UnitOfWork) (int, error) {
+	r, err := u.Pages.GetFirstPageWithContext(ctx, opt.ProjectId, opt.Locator, opt.ContextId)
 	if err != nil {
 		if errors.Is(err, store.ErrEmptyData) {
 			return -1, ErrNoSimilarPage
@@ -129,8 +136,8 @@ func (p *PageRetriever) usingContextID(ctx context.Context, opt RetereivalOption
 	return r, nil
 }
 
-func (p *PageRetriever) usingScreenShot(ctx context.Context, opt RetereivalOptions) (int, error) {
-	potentialPages, err := p.pageStore.GetPages(ctx, opt.ProjectId, opt.Locator)
+func (p *PageRetriever) usingScreenShot(ctx context.Context, opt RetereivalOptions, u *store.UnitOfWork) (int, error) {
+	potentialPages, err := u.Pages.GetPages(ctx, opt.ProjectId, opt.Locator)
 	if err != nil {
 		return -1, err
 	}
@@ -142,7 +149,7 @@ func (p *PageRetriever) usingScreenShot(ctx context.Context, opt RetereivalOptio
 	}
 
 	for _, pp := range potentialPages {
-		storedPng, err := p.pageStore.GetPagePNG(ctx, pp)
+		storedPng, err := u.Pages.GetPagePNG(ctx, pp)
 		if err != nil {
 			// todo: report to user that there was an error here somehow
 			continue
