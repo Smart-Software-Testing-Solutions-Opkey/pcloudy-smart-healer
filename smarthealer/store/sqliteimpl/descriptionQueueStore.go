@@ -36,7 +36,7 @@ func (s *sqliteDescriptionQueueStore) Add(ctx context.Context, locatorId, pageId
 }
 
 func (s *sqliteDescriptionQueueStore) Remove(ctx context.Context, locatorId, pageId int) error {
-	query := `DELETE FROM description_queue WHRE page_id = ? AND locator_id = ?;`
+	query := `DELETE FROM description_queue WHERE page_id = ? AND locator_id = ?;`
 
 	stmt, err := s.tx.PreparexContext(ctx, query)
 	if err != nil {
@@ -66,7 +66,7 @@ func (s *sqliteDescriptionQueueStore) Length(ctx context.Context) (int64, error)
 
 	var count int64
 	if err := s.tx.GetContext(ctx, &count, query); err != nil {
-		return -1, fmt.Errorf("failed to retreive count: %w", err)
+		return -1, fmt.Errorf("failed to retrieve count: %w", err)
 	}
 
 	return count, nil
@@ -82,7 +82,7 @@ func (s *sqliteDescriptionQueueStore) GetOldestEntry(ctx context.Context) (*stor
 		LocatorId int `db:"locator_id"`
 	}{}
 	if err := s.tx.GetContext(ctx, &p, query); err != nil {
-		return nil, fmt.Errorf("failed to retreive oldest locator: %w", err)
+		return nil, fmt.Errorf("failed to retrieve oldest locator: %w", err)
 	}
 
 	return &store.DescriptionQueueEntry{

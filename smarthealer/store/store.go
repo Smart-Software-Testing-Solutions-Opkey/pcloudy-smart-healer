@@ -40,7 +40,7 @@ type DescriptionQueue interface {
 
 type HealingQueue interface {
 	Add(ctx context.Context, infoJson, optJson string) error
-	Remove(ctx context.Context, queueId int) error
+	Remove(ctx context.Context, queueId int64) error
 	Length(ctx context.Context) (int64, error)
 	GetOldestEntry(ctx context.Context) (*HealingQueueEntry, error)
 }
