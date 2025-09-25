@@ -10,12 +10,12 @@ import (
 )
 
 type sqlitePageStore struct {
-	db sqlx.DB
+	tx *sqlx.Tx
 }
 
-func NewSqlitePageStore(db sqlx.DB) *sqlitePageStore {
+func NewSqlitePageStore(tx *sqlx.Tx) *sqlitePageStore {
 	return &sqlitePageStore{
-		db: db,
+		tx: tx,
 	}
 }
 
@@ -24,7 +24,7 @@ func (s *sqlitePageStore) Add(ctx context.Context, entry store.PageEntry) (int, 
 	page(page_source, locator, b64_png, context_id, project_id, platform, page_type)
 	VALUES (?, ?, ?, ?, ?, ?, ?);`
 
-	stmt, err := s.db.PreparexContext(ctx, query)
+	stmt, err := s.tx.PreparexContext(ctx, query)
 	if err != nil {
 		return -1, fmt.Errorf("failed to prepare query: %w", err)
 	}
@@ -59,7 +59,7 @@ func (s *sqlitePageStore) GetPageSourceInfo(ctx context.Context, pageId int) (st
 		PageType   string `db:"page_type"`
 	}
 	var p pageInfo
-	if err := s.db.Get(&p, query, pageId); err != nil {
+	if err := s.tx.Get(&p, query, pageId); err != nil {
 		return store.PageSrcInfo{}, fmt.Errorf("failed to query page for pageId(%d): %w", pageId, err)
 	}
 
@@ -73,7 +73,7 @@ func (s *sqlitePageStore) GetPagePNG(ctx context.Context, pageId int) (string, e
 	query := `SELECT b64_png FROM page WHERE page_id = ?;`
 
 	var str string
-	if err := s.db.Get(&str, query, pageId); err != nil {
+	if err := s.tx.Get(&str, query, pageId); err != nil {
 		return "", fmt.Errorf("failed to query png for pageId(%d): %w", pageId, err)
 	}
 
@@ -84,7 +84,7 @@ func (s *sqlitePageStore) GetFirstPageWithContext(ctx context.Context, projectId
 	query := `SELECT page_id FROM page WHERE project_id = ? AND locator = ? AND context_id = ?;`
 
 	var id int
-	if err := s.db.Get(&id, query, projectId, locator, contextId); err != nil {
+	if err := s.tx.Get(&id, query, projectId, locator, contextId); err != nil {
 		return -1, fmt.Errorf("failed to query pageId for given params: %w", err)
 	}
 
@@ -95,7 +95,7 @@ func (s *sqlitePageStore) GetPages(ctx context.Context, projectId, locator strin
 	query := `SELECT page_id FROM page where project_id = ? AND locator = ?;`
 
 	var ids []int
-	if err := s.db.Select(&ids, query, projectId, locator); err != nil {
+	if err := s.tx.Select(&ids, query, projectId, locator); err != nil {
 		return nil, fmt.Errorf("failed to query pageIds for given params: %w", err)
 	}
 

@@ -35,11 +35,22 @@ type Healer struct {
 	intelSys      intelligence.IntelligenceSystem
 	pageRetriever retrieval.PageRetriever
 	uowFactory    store.UnitOfWorkFactory
+	bg            *BackgroundWorker
 }
 
-func NewHealer(cfg config.Config) *Healer {
+func NewHealer(
+	cfg config.Config,
+	intel intelligence.IntelligenceSystem,
+	pageR retrieval.PageRetriever,
+	uowF store.UnitOfWorkFactory,
+	bg *BackgroundWorker,
+) *Healer {
 	return &Healer{
-		cfg: cfg,
+		cfg:           cfg,
+		intelSys:      intel,
+		pageRetriever: pageR,
+		uowFactory:    uowF,
+		bg:            bg,
 	}
 }
 
@@ -72,9 +83,12 @@ func (h *Healer) ResolveLocator(ctx context.Context, info LocatorInfo, opt Resol
 		err = fmt.Errorf("%w: %w", err, ErrResolveFailed)
 	}
 
+	// Notification to Background Service should
+	// only happen after commit has been triggered
 	if err := u.Commit(); err != nil {
 		return "", err
 	}
+	h.bg.NotifyDescriptionPosted()
 
 	return r, err
 }
@@ -240,32 +254,7 @@ func (h *Healer) registerPageAndLocator(ctx context.Context, info LocatorInfo, u
 }
 
 func (h *Healer) generateLocatorDescription(ctx context.Context, locatorId, pageId int, u *store.UnitOfWork) error {
-	newLocator, err := u.Locators.GetLocator(ctx, locatorId)
-	if err != nil {
-		return err
-	}
-
-	pageSrcInfo, err := u.Pages.GetPageSourceInfo(ctx, pageId)
-	if err != nil {
-		return err
-	}
-
-	page, err := page.NewPage(pageSrcInfo.PageSource, pageSrcInfo.PageType)
-	if err != nil {
-		return err
-	}
-
-	elemSrc, err := page.GetElementSrc(newLocator)
-	if err != nil {
-		return err
-	}
-
-	desc, err := h.intelSys.GenerateElementDescription(ctx, pageSrcInfo.PageSource, elemSrc)
-	if err != nil {
-		return err
-	}
-
-	return u.Locators.UpdateDescription(ctx, locatorId, desc)
+	return u.DescriptionQueue.Add(ctx, locatorId, pageId)
 }
 
 func conformLocatorInfo(info *LocatorInfo) {

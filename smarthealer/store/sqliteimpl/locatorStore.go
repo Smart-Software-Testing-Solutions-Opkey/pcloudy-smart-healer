@@ -9,12 +9,12 @@ import (
 )
 
 type sqliteLocatorStore struct {
-	db sqlx.DB
+	tx *sqlx.Tx
 }
 
-func NewSqliteLocatorStore(db sqlx.DB) *sqlitePageStore {
-	return &sqlitePageStore{
-		db: db,
+func NewSqliteLocatorStore(tx *sqlx.Tx) *sqliteLocatorStore {
+	return &sqliteLocatorStore{
+		tx: tx,
 	}
 }
 
@@ -22,7 +22,7 @@ func (s *sqliteLocatorStore) Add(ctx context.Context, entry store.LocatorEntry) 
 	query := `INSERT INTO locator (page_id, locator, description) 
 	VALUES (?, ?, ?);`
 
-	stmt, err := s.db.PreparexContext(ctx, query)
+	stmt, err := s.tx.PreparexContext(ctx, query)
 	if err != nil {
 		return -1, fmt.Errorf("failed to prepare query: %w", err)
 	}
@@ -44,7 +44,7 @@ func (s *sqliteLocatorStore) Add(ctx context.Context, entry store.LocatorEntry) 
 func (s *sqliteLocatorStore) UpdateDescription(ctx context.Context, locatorId int, desc string) error {
 	query := `UPDATE locator SET description = ? WHERE locator_id = ?;`
 
-	stmt, err := s.db.PreparexContext(ctx, query)
+	stmt, err := s.tx.PreparexContext(ctx, query)
 	if err != nil {
 		return fmt.Errorf("failed to prepare query: %w", err)
 	}
@@ -62,7 +62,7 @@ func (s *sqliteLocatorStore) GetPageLocators(ctx context.Context, pageId int) ([
 	query := `SELECT locator FROM locator WHERE page_id = ? ORDER BY created_at DESC;`
 
 	var ids []string
-	if err := s.db.Select(&ids, query, pageId); err != nil {
+	if err := s.tx.Select(&ids, query, pageId); err != nil {
 		return nil, fmt.Errorf("failed to query locators: %w", err)
 	}
 
@@ -75,7 +75,7 @@ func (s *sqliteLocatorStore) GetLatestPageDescription(ctx context.Context, pageI
 	LIMIT 1;`
 
 	var desc string
-	if err := s.db.Get(&desc, query, pageId); err != nil {
+	if err := s.tx.Get(&desc, query, pageId); err != nil {
 		return "", fmt.Errorf("failed to query latest description: %w", err)
 	}
 
@@ -86,7 +86,7 @@ func (s *sqliteLocatorStore) GetLocator(ctx context.Context, locatorId int) (str
 	query := `SELECT locator from locator WHERE locator_id = ?;`
 
 	var locator string
-	if err := s.db.Get(&locator, query, locatorId); err != nil {
+	if err := s.tx.Get(&locator, query, locatorId); err != nil {
 		return "", fmt.Errorf("failed to query locator: %w", err)
 	}
 
