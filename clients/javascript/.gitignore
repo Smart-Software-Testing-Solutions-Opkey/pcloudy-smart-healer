@@ -4,3 +4,4 @@ build/
 dist/
 .clangd
 compile_commands.json
+CLAUDE.md
