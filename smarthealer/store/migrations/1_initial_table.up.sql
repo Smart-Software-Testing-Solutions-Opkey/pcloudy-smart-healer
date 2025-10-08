@@ -15,7 +15,7 @@ CREATE TABLE locator (
     page_id INTEGER NOT NULL,
     locator TEXT NOT NULL,
     description TEXT NOT NULL,
-    created_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP)
+    created_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
 
-    FOREIGN KEY(page_id) REFERECES page(page_id)
+    FOREIGN KEY(page_id) REFERENCES page(page_id)
 );

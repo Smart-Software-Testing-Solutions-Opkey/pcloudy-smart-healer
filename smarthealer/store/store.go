@@ -18,6 +18,7 @@ type PageStore interface {
 	GetPagePNG(ctx context.Context, pageId int) (string, error)
 
 	GetFirstPageWithContext(ctx context.Context, projectId, locator, contextId string) (int, error)
+	GetAllPagesWithContext(ctx context.Context, projectId, locator, contextId string) ([]int, error)
 	GetPages(ctx context.Context, projectId, locator string) ([]int, error)
 }
 

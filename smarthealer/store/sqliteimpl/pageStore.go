@@ -2,6 +2,8 @@ package sqliteimpl
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/Smart-Software-Testing-Solutions-Opkey/pcloudy-smart-healer/smarthealer/page"
@@ -81,14 +83,32 @@ func (s *sqlitePageStore) GetPagePNG(ctx context.Context, pageId int) (string, e
 }
 
 func (s *sqlitePageStore) GetFirstPageWithContext(ctx context.Context, projectId, locator, contextId string) (int, error) {
-	query := `SELECT page_id FROM page WHERE project_id = ? AND locator = ? AND context_id = ?;`
+	query := `SELECT page_id FROM page WHERE project_id = ? AND locator = ? AND context_id = ? ORDER BY created_at DESC LIMIT 1;`
 
 	var id int
 	if err := s.tx.Get(&id, query, projectId, locator, contextId); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return -1, store.ErrEmptyData
+		}
 		return -1, fmt.Errorf("failed to query pageId for given params: %w", err)
 	}
 
 	return id, nil
+}
+
+func (s *sqlitePageStore) GetAllPagesWithContext(ctx context.Context, projectId, locator, contextId string) ([]int, error) {
+	query := `SELECT page_id FROM page WHERE project_id = ? AND locator = ? AND context_id = ? ORDER BY created_at DESC;`
+
+	var ids []int
+	if err := s.tx.Select(&ids, query, projectId, locator, contextId); err != nil {
+		return nil, fmt.Errorf("failed to query pageIds for given params: %w", err)
+	}
+
+	if len(ids) == 0 {
+		return nil, store.ErrEmptyData
+	}
+
+	return ids, nil
 }
 
 func (s *sqlitePageStore) GetPages(ctx context.Context, projectId, locator string) ([]int, error) {

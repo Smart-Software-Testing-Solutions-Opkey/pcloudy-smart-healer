@@ -50,6 +50,10 @@ func (p *htmlPage) GetElementSrc(xpath string) (string, error) {
 		return "", fmt.Errorf("%w: %w", err, ErrInvalidXPath)
 	}
 
+	if n == nil {
+		return "", fmt.Errorf("xpath does not match any element: %s: %w", xpath, ErrInvalidXPath)
+	}
+
 	return htmlquery.OutputHTML(n, true), nil
 }
 
