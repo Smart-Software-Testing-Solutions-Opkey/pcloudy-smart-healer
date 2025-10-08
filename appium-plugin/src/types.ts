@@ -1,9 +1,13 @@
 import { Element } from '@appium/types';
 
-export interface SmartHealerConfig {
+export interface SmartHealerPluginConfig {
   openai_key: string;
   sqlite_db_path?: string;
   enabled?: boolean;
+}
+
+export interface SmartHealerSessionConfig {
+  project_id: string;  // Required from capabilities per session
 }
 
 export interface ElementInfo {
@@ -27,6 +31,11 @@ export interface ElementContext {
   element?: Element;
   screenshot?: string;
   pageSource?: string;
+  currentActivity?: string;  // For Android native
+  currentUrl?: string;        // For WebView
+  isWebView?: boolean;        // To distinguish webview from native
+  platformName?: string;      // 'Android', 'iOS', 'Web'
+  projectId: string;          // From capabilities
 }
 
 export enum Platform {
