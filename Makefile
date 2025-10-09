@@ -1,118 +1,205 @@
-# SmartHealer Multi-Architecture Build System
-# Top-level Makefile for building all components
+.PHONY: all build clean rebuild cross-build cross-build-all help install-deps test
 
-.PHONY: all build clean setup help appium-plugin js-client go-core cross-compile
+# Detect current platform
+DETECTED_OS := $(shell uname -s | tr A-Z a-z)
+DETECTED_ARCH := $(shell uname -m)
 
-# Default target
+# Normalize OS names
+ifeq ($(DETECTED_OS),darwin)
+	OS_NAME = darwin
+else ifeq ($(DETECTED_OS),linux)
+	OS_NAME = linux
+else
+	$(error Unsupported OS: $(DETECTED_OS))
+endif
+
+# Normalize architecture names to GOARCH
+ifeq ($(DETECTED_ARCH),x86_64)
+	ARCH_NAME = amd64
+else ifeq ($(DETECTED_ARCH),aarch64)
+	ARCH_NAME = arm64
+else ifeq ($(DETECTED_ARCH),arm64)
+	ARCH_NAME = arm64
+else
+	$(error Unsupported architecture: $(DETECTED_ARCH))
+endif
+
+# Paths
+GO_DIR = smarthealer
+JS_CLIENT_DIR = clients/javascript
+APPIUM_PLUGIN_DIR = appium-plugin
+
+# Default target - build for current platform
 all: build
 
-# Build all components for current architecture
+# Build entire pipeline for current platform
 build:
-	@echo "Building SmartHealer for current architecture..."
-	@./scripts/build-all.sh
+	@echo "=========================================="
+	@echo "Building SmartHealer for $(OS_NAME)-$(ARCH_NAME)"
+	@echo "=========================================="
+	@echo ""
+	@echo "Step 1/4: Building Go core library..."
+	@cd $(GO_DIR) && $(MAKE) build-static
+	@echo ""
+	@echo "Step 2/4: Copying artifacts to JavaScript client..."
+	@mkdir -p $(JS_CLIENT_DIR)/lib/$(OS_NAME)-$(ARCH_NAME)
+	@cp $(GO_DIR)/libsmarthealer.a $(JS_CLIENT_DIR)/lib/$(OS_NAME)-$(ARCH_NAME)/libsmarthealer.a
+	@cp $(GO_DIR)/libsmarthealer.h $(JS_CLIENT_DIR)/includes/libsmarthealer.h
+	@echo "Artifacts copied successfully"
+	@echo ""
+	@echo "Step 3/4: Building JavaScript client..."
+	@cd $(JS_CLIENT_DIR) && $(MAKE) build
+	@echo ""
+	@echo "Step 4/4: Building Appium plugin..."
+	@cd $(APPIUM_PLUGIN_DIR) && $(MAKE) build
+	@echo ""
+	@echo "=========================================="
+	@echo "Build completed successfully for $(OS_NAME)-$(ARCH_NAME)"
+	@echo "=========================================="
+
+# Cross-build for all supported platforms
+cross-build-all:
+	@echo "=========================================="
+	@echo "Cross-building SmartHealer for all platforms"
+	@echo "=========================================="
+	@echo ""
+	@for target in linux-amd64 linux-arm64 darwin-amd64 darwin-arm64; do \
+		TARGET_OS=$$(echo $$target | cut -d- -f1); \
+		TARGET_ARCH=$$(echo $$target | cut -d- -f2); \
+		echo "Building for $$target..."; \
+		echo "Step 1/2: Cross-compiling Go core library for $$target..."; \
+		(cd $(GO_DIR) && $(MAKE) cross OS=$$TARGET_OS ARCH=$$TARGET_ARCH TYPE=static); \
+		echo "Step 2/2: Copying artifacts to JavaScript client..."; \
+		mkdir -p $(JS_CLIENT_DIR)/lib/$$TARGET_OS-$$TARGET_ARCH; \
+		cp $(GO_DIR)/libsmarthealer-$$TARGET_OS-$$TARGET_ARCH.a $(JS_CLIENT_DIR)/lib/$$TARGET_OS-$$TARGET_ARCH/libsmarthealer.a; \
+		cp $(GO_DIR)/libsmarthealer.h $(JS_CLIENT_DIR)/includes/libsmarthealer.h; \
+		echo "Completed $$target"; \
+		echo ""; \
+	done
+	@echo "=========================================="
+	@echo "All platforms built successfully"
+	@echo "Archives copied to:"
+	@echo "  $(JS_CLIENT_DIR)/lib/linux-amd64/libsmarthealer.a"
+	@echo "  $(JS_CLIENT_DIR)/lib/linux-arm64/libsmarthealer.a"
+	@echo "  $(JS_CLIENT_DIR)/lib/darwin-amd64/libsmarthealer.a"
+	@echo "  $(JS_CLIENT_DIR)/lib/darwin-arm64/libsmarthealer.a"
+	@echo "=========================================="
+
+# Cross-build for specific platform
+# Usage: make cross-build TARGET=linux-amd64
+# Usage: make cross-build TARGET=darwin-arm64
+cross-build:
+	@if [ -z "$(TARGET)" ]; then \
+		echo "Error: TARGET must be specified"; \
+		echo "Usage: make cross-build TARGET=<os>-<arch>"; \
+		echo ""; \
+		echo "Supported targets:"; \
+		echo "  linux-amd64    Linux x86_64"; \
+		echo "  linux-arm64    Linux ARM64"; \
+		echo "  darwin-amd64   macOS x86_64"; \
+		echo "  darwin-arm64   macOS ARM64"; \
+		exit 1; \
+	fi
+	@TARGET_OS=$$(echo $(TARGET) | cut -d- -f1); \
+	TARGET_ARCH=$$(echo $(TARGET) | cut -d- -f2); \
+	echo "=========================================="; \
+	echo "Cross-building SmartHealer for $(TARGET)"; \
+	echo "=========================================="; \
+	echo ""; \
+	echo "Step 1/4: Cross-compiling Go core library..."; \
+	(cd $(GO_DIR) && $(MAKE) cross OS=$$TARGET_OS ARCH=$$TARGET_ARCH TYPE=static); \
+	echo ""; \
+	echo "Step 2/4: Copying artifacts to JavaScript client..."; \
+	mkdir -p $(JS_CLIENT_DIR)/lib/$$TARGET_OS-$$TARGET_ARCH; \
+	cp $(GO_DIR)/libsmarthealer-$$TARGET_OS-$$TARGET_ARCH.a $(JS_CLIENT_DIR)/lib/$$TARGET_OS-$$TARGET_ARCH/libsmarthealer.a; \
+	cp $(GO_DIR)/libsmarthealer.h $(JS_CLIENT_DIR)/includes/libsmarthealer.h; \
+	echo "Artifacts copied successfully"; \
+	echo ""; \
+	echo "Step 3/4: Building JavaScript client..."; \
+	(cd $(JS_CLIENT_DIR) && $(MAKE) build); \
+	echo ""; \
+	echo "Step 4/4: Building Appium plugin..."; \
+	(cd $(APPIUM_PLUGIN_DIR) && $(MAKE) build); \
+	echo ""; \
+	echo "=========================================="; \
+	echo "Cross-build completed successfully for $(TARGET)"; \
+	echo "=========================================="
+
+# Install dependencies for all components
+install-deps:
+	@echo "Installing dependencies..."
+	@echo ""
+	@echo "JavaScript client dependencies..."
+	@cd $(JS_CLIENT_DIR) && npm install
+	@echo ""
+	@echo "Appium plugin dependencies..."
+	@cd $(APPIUM_PLUGIN_DIR) && npm install
+	@echo ""
+	@echo "Dependencies installed successfully"
 
 # Clean all build artifacts
 clean:
 	@echo "Cleaning all build artifacts..."
-	@cd smarthealer && make clean || true
-	@cd clients/javascript && npm run clean 2>/dev/null || true
-	@cd appium-plugin && npm run clean 2>/dev/null || true
-	@rm -rf clients/javascript/lib/*/
+	@cd $(GO_DIR) && $(MAKE) clean
+	@cd $(JS_CLIENT_DIR) && $(MAKE) clean
+	@cd $(APPIUM_PLUGIN_DIR) && $(MAKE) clean
+	@rm -rf $(JS_CLIENT_DIR)/lib/*/
 	@echo "Clean completed"
 
-# Setup development environment
-setup:
-	@echo "Setting up development environment..."
-	@./scripts/setup-dev-env.sh
-
-# Install dependencies and setup with automatic installation
-setup-install:
-	@echo "Setting up development environment with automatic installation..."
-	@./scripts/setup-dev-env.sh --install
-
-# Build only the Appium plugin
-appium-plugin:
-	@echo "Building Appium plugin..."
-	@./scripts/build-appium-plugin.sh
-
-# Build only the JavaScript client
-js-client:
-	@echo "Building JavaScript client..."
-	@cd clients/javascript && npm install && npm run build
-
-# Build only the Go core library
-go-core:
-	@echo "Building Go core library..."
-	@cd smarthealer && make build-static
-
-# Cross-compile for all supported architectures
-cross-compile:
-	@echo "Cross-compiling for all supported architectures..."
-	@./scripts/build-all.sh --arch linux-x64
-	@./scripts/build-all.sh --arch linux-arm64
-	@./scripts/build-all.sh --arch linux-arm
-	@./scripts/build-all.sh --arch darwin-x64
-	@./scripts/build-all.sh --arch darwin-arm64
-	@echo "Cross-compilation completed"
-
-# Development mode with file watching
-dev:
-	@echo "Starting development mode..."
-	@./scripts/build-appium-plugin.sh --watch
-
-# Build with debug symbols
-debug:
-	@echo "Building in debug mode..."
-	@./scripts/build-all.sh --debug
-
-# Clean build (remove all artifacts before building)
+# Rebuild everything
 rebuild: clean build
 
-# Install Appium plugin locally
-install-plugin: appium-plugin
-	@echo "Installing SmartHealer plugin in Appium..."
-	@appium plugin install --source=local ./appium-plugin
-
-# Run tests (if available)
+# Run tests
 test:
 	@echo "Running tests..."
-	@cd clients/javascript && npm test || echo "No JavaScript tests found"
-	@cd appium-plugin && npm test || echo "No Appium plugin tests found"
-	@cd smarthealer && go test ./... || echo "No Go tests found"
+	@echo ""
+	@echo "Go tests..."
+	@cd $(GO_DIR) && go test ./... || echo "No Go tests found"
+	@echo ""
+	@echo "JavaScript client tests..."
+	@cd $(JS_CLIENT_DIR) && npm test || echo "No JavaScript tests found"
+	@echo ""
+	@echo "Appium plugin tests..."
+	@cd $(APPIUM_PLUGIN_DIR) && npm test || echo "No Appium plugin tests found"
 
-# Show help
+# Help
 help:
-	@echo "SmartHealer Build System"
+	@echo "SmartHealer Multi-Architecture Build System"
 	@echo ""
-	@echo "Available targets:"
-	@echo "  build          Build all components for current architecture"
-	@echo "  clean          Clean all build artifacts"
-	@echo "  setup          Setup development environment"
-	@echo "  setup-install  Setup with automatic dependency installation"
-	@echo "  appium-plugin  Build only the Appium plugin"
-	@echo "  js-client      Build only the JavaScript client"
-	@echo "  go-core        Build only the Go core library"
-	@echo "  cross-compile  Build for all supported architectures"
-	@echo "  dev            Start development mode with file watching"
-	@echo "  debug          Build in debug mode"
-	@echo "  rebuild        Clean and build"
-	@echo "  install-plugin Install Appium plugin locally"
-	@echo "  test           Run tests"
-	@echo "  help           Show this help message"
+	@echo "Current platform: $(OS_NAME)-$(ARCH_NAME)"
 	@echo ""
-	@echo "Architecture-specific builds:"
-	@echo "  make build ARCH=linux-arm64    # Build for ARM64 Linux"
-	@echo "  make build ARCH=darwin-x64     # Build for x64 macOS"
+	@echo "Usage:"
+	@echo "  make                    Build for current platform"
+	@echo "  make build              Build for current platform"
+	@echo "  make cross-build TARGET=<os>-<arch>"
+	@echo "                          Cross-build for specific platform"
+	@echo "  make cross-build-all    Cross-build for all supported platforms"
+	@echo "  make install-deps       Install dependencies"
+	@echo "  make clean              Clean all build artifacts"
+	@echo "  make rebuild            Clean and rebuild"
+	@echo "  make test               Run all tests"
+	@echo "  make help               Show this help"
 	@echo ""
-	@echo "Examples:"
-	@echo "  make setup          # First time setup"
-	@echo "  make build          # Standard build"
-	@echo "  make dev            # Development mode"
-	@echo "  make cross-compile  # Build for all architectures"
-
-# Architecture-specific build (when ARCH is provided)
-ifdef ARCH
-build:
-	@echo "Building SmartHealer for architecture: $(ARCH)"
-	@./scripts/build-all.sh --arch $(ARCH)
-endif
+	@echo "Cross-build examples:"
+	@echo "  make cross-build TARGET=linux-amd64"
+	@echo "  make cross-build TARGET=linux-arm64"
+	@echo "  make cross-build TARGET=darwin-amd64"
+	@echo "  make cross-build TARGET=darwin-arm64"
+	@echo "  make cross-build-all    # Build all platforms"
+	@echo ""
+	@echo "Supported targets:"
+	@echo "  linux-amd64    Linux x86_64"
+	@echo "  linux-arm64    Linux ARM64"
+	@echo "  darwin-amd64   macOS x86_64 (Intel)"
+	@echo "  darwin-arm64   macOS ARM64 (Apple Silicon)"
+	@echo ""
+	@echo "Build pipeline:"
+	@echo "  1. Build Go core library (static archive)"
+	@echo "  2. Copy artifacts to JavaScript client"
+	@echo "  3. Build JavaScript client (TypeScript + native addon)"
+	@echo "  4. Build Appium plugin"
+	@echo ""
+	@echo "Component-specific builds:"
+	@echo "  cd smarthealer && make help          # Go library options"
+	@echo "  cd clients/javascript && make help   # JavaScript client options"
+	@echo "  cd appium-plugin && make help        # Appium plugin options"
