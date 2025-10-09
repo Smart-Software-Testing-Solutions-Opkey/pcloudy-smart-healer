@@ -317,4 +317,4 @@ See `example/usage-example.js` for a complete working example.
 
 ## License
 
-ISC
+MIT

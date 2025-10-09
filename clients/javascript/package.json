@@ -2,7 +2,7 @@
   "name": "smarthealer-js",
   "version": "0.1.0",
   "description": "JavaScript/TypeScript client for SmartHealer - intelligent web element locator resolution and healing",
-  "license": "ISC",
+  "license": "MIT",
   "author": "",
   "type": "commonjs",
   "main": "dist/index.js",
