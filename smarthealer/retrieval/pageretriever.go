@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/Smart-Software-Testing-Solutions-Opkey/pcloudy-smart-healer/smarthealer/filelog"
 	"github.com/Smart-Software-Testing-Solutions-Opkey/pcloudy-smart-healer/smarthealer/intelligence"
 	"github.com/Smart-Software-Testing-Solutions-Opkey/pcloudy-smart-healer/smarthealer/platform"
 	"github.com/Smart-Software-Testing-Solutions-Opkey/pcloudy-smart-healer/smarthealer/store"
@@ -52,12 +53,16 @@ func NewComparisionModeFromString(s string) ComparisionMode {
 }
 
 func (c ComparisionMode) MarshalJSON() ([]byte, error) {
-	return []byte(c.String()), nil
+	return []byte(`"` + c.String() + `"`), nil
 }
 
 func (c *ComparisionMode) UnmarshalJSON(b []byte) error {
-	*c = NewComparisionModeFromString(string(b))
-
+	// Remove quotes if present
+	s := string(b)
+	if len(s) >= 2 && s[0] == '"' && s[len(s)-1] == '"' {
+		s = s[1 : len(s)-1]
+	}
+	*c = NewComparisionModeFromString(s)
 	return nil
 }
 
@@ -86,7 +91,7 @@ type RetereivalOptions struct {
 	Platform  platform.Platform
 }
 
-func (p *PageRetriever) RetrieveCandidatePages(ctx context.Context, opt RetereivalOptions, mode ComparisionMode) (int, error) {
+func (p *PageRetriever) RetrieveCandidatePages(ctx context.Context, opt RetereivalOptions, mode ComparisionMode) ([]int, error) {
 	if mode == AutomaticComparisionMode {
 		switch opt.Platform {
 		case platform.IosPlatform:
@@ -94,13 +99,13 @@ func (p *PageRetriever) RetrieveCandidatePages(ctx context.Context, opt Retereiv
 		case platform.AndroidPlatform, platform.WebPlatform:
 			mode = ManualComparisionMode
 		default:
-			return -1, fmt.Errorf("invalid platform specified: %w", ErrRetrievalFailed)
+			return nil, fmt.Errorf("invalid platform specified: %w", ErrRetrievalFailed)
 		}
 	}
 
 	u, err := p.uowF.NewUnitOfWork(ctx)
 	if err != nil {
-		return -1, fmt.Errorf("failed to create unit of work: %w", ErrRetrievalFailed)
+		return nil, fmt.Errorf("failed to create unit of work: %w", ErrRetrievalFailed)
 	}
 	defer u.Rollback() // this is readonly transaction but needs cleanup
 
@@ -120,53 +125,57 @@ func (p *PageRetriever) RetrieveCandidatePages(ctx context.Context, opt Retereiv
 		}
 		return r, err
 	default:
-		return -1, fmt.Errorf("invalid comparision mode provided: %w", ErrRetrievalFailed)
+		return nil, fmt.Errorf("invalid comparision mode provided: %w", ErrRetrievalFailed)
 	}
 }
 
-func (p *PageRetriever) usingContextID(ctx context.Context, opt RetereivalOptions, u *store.UnitOfWork) (int, error) {
-	r, err := u.Pages.GetFirstPageWithContext(ctx, opt.ProjectId, opt.Locator, opt.ContextId)
+func (p *PageRetriever) usingContextID(ctx context.Context, opt RetereivalOptions, u *store.UnitOfWork) ([]int, error) {
+	r, err := u.Pages.GetAllPagesWithContext(ctx, opt.ProjectId, opt.Locator, opt.ContextId)
 	if err != nil {
 		if errors.Is(err, store.ErrEmptyData) {
-			return -1, ErrNoSimilarPage
+			return nil, ErrNoSimilarPage
 		}
-		return -1, err
+		return nil, err
 	}
 
 	return r, nil
 }
 
-func (p *PageRetriever) usingScreenShot(ctx context.Context, opt RetereivalOptions, u *store.UnitOfWork) (int, error) {
+func (p *PageRetriever) usingScreenShot(ctx context.Context, opt RetereivalOptions, u *store.UnitOfWork) ([]int, error) {
 	potentialPages, err := u.Pages.GetPages(ctx, opt.ProjectId, opt.Locator)
 	if err != nil {
-		return -1, err
+		return nil, err
 	}
 
-	// early return if we have only one page to bypass expensive screenshot comparision
-	// todo: is this valid ?
+	// early return if we have only one page to bypass expensive screenshot comparison
 	if len(potentialPages) == 1 {
-		return potentialPages[0], nil
+		return potentialPages, nil
 	}
 
+	var matchingPages []int
 	for _, pp := range potentialPages {
 		storedPng, err := u.Pages.GetPagePNG(ctx, pp)
 		if err != nil {
-			// todo: report to user that there was an error here somehow
+			filelog.Error("Failed to get page PNG for page_id %d during screenshot comparison: %v", pp, err)
 			continue
 		}
 
 		ok, err := p.compareSS(ctx, storedPng, opt.B64Png)
 		if err != nil {
-			// todo: report to user that there was an error here somehow
+			filelog.Error("Failed to compare screenshots for page_id %d: %v", pp, err)
 			continue
 		}
 
 		if ok {
-			return pp, nil
+			matchingPages = append(matchingPages, pp)
 		}
 	}
 
-	return -1, ErrNoSimilarPage
+	if len(matchingPages) == 0 {
+		return nil, ErrNoSimilarPage
+	}
+
+	return matchingPages, nil
 }
 
 func (p *PageRetriever) compareSS(ctx context.Context, img1, img2 string) (bool, error) {

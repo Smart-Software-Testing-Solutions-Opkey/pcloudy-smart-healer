@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Smart-Software-Testing-Solutions-Opkey/pcloudy-smart-healer/smarthealer/config"
+	"github.com/Smart-Software-Testing-Solutions-Opkey/pcloudy-smart-healer/smarthealer/filelog"
 	"github.com/Smart-Software-Testing-Solutions-Opkey/pcloudy-smart-healer/smarthealer/healer"
 	"github.com/Smart-Software-Testing-Solutions-Opkey/pcloudy-smart-healer/smarthealer/intelligence"
 	"github.com/Smart-Software-Testing-Solutions-Opkey/pcloudy-smart-healer/smarthealer/llm"
@@ -34,6 +35,15 @@ type SmartHealer struct {
 func NewSmartHealer(cfg config.Config) (*SmartHealer, error) {
 	dbPath, err := getDbPath(cfg.Db.Path)
 	if err != nil {
+		return nil, err
+	}
+
+	// Initialize file logging to the same directory as the database
+	if err := filelog.Init(dbPath); err != nil {
+		return nil, err
+	}
+
+	if err := store.EnsureMigrations(dbPath); err != nil {
 		return nil, err
 	}
 
@@ -84,21 +94,30 @@ func (s *SmartHealer) Close() {
 	s.cancel()
 
 	s.wg.Wait()
+
+	// Close file log
+	filelog.Close()
 }
 
 func (s *SmartHealer) StartBackgroundWorkers() {
 	limit := rate.Every(2 * time.Second)
 
+	filelog.Info("Starting background workers with rate limit: 1 request per 2 seconds")
+
 	s.wg.Go(func() {
+		filelog.Info("Description background worker started")
 		s.bg.ProcessDescriptionsBG(s.ctx, limit)
+		filelog.Info("Description background worker stopped")
 	})
 
 	s.wg.Go(func() {
+		filelog.Info("Healing background worker started")
 		s.bg.ProcessHealingBG(
 			s.ctx,
 			limit,
 			s.bg.HealWorkerFunc(s.healer.ResolveLocator),
 		)
+		filelog.Info("Healing background worker stopped")
 	})
 }
 

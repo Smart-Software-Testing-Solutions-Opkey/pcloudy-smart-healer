@@ -15,9 +15,18 @@
       "cflags": [ "-fexceptions" ],
       "cflags_cc": [ "-fexceptions" ],
       "conditions": [
-          ["OS=='linux'", {
-              "libraries": ["<(module_root_dir)/lib/linux-x64/libsmarthealer.a"]
-          }]
+        ["OS=='linux' and target_arch=='x64'", {
+          "libraries": ["<(module_root_dir)/lib/linux-amd64/libsmarthealer.a"]
+        }],
+        ["OS=='linux' and target_arch=='arm64'", {
+          "libraries": ["<(module_root_dir)/lib/linux-arm64/libsmarthealer.a"]
+        }],
+        ["OS=='mac' and target_arch=='x64'", {
+          "libraries": ["<(module_root_dir)/lib/darwin-amd64/libsmarthealer.a"]
+        }],
+        ["OS=='mac' and target_arch=='arm64'", {
+          "libraries": ["<(module_root_dir)/lib/darwin-arm64/libsmarthealer.a"]
+        }]
       ]
     }
   ]

@@ -42,11 +42,15 @@ func NewPageTypeFromString(s string) PageType {
 var ErrInvalidPageType = errors.New("invalid page type provided")
 
 func (p PageType) MarshalJSON() ([]byte, error) {
-	return []byte(p.String()), nil
+	return []byte(`"` + p.String() + `"`), nil
 }
 
 func (p *PageType) UnmarshalJSON(b []byte) error {
-	*p = NewPageTypeFromString(string(b))
-
+	// Remove quotes if present
+	s := string(b)
+	if len(s) >= 2 && s[0] == '"' && s[len(s)-1] == '"' {
+		s = s[1 : len(s)-1]
+	}
+	*p = NewPageTypeFromString(s)
 	return nil
 }

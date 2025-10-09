@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/Smart-Software-Testing-Solutions-Opkey/pcloudy-smart-healer/smarthealer/config"
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/sqlite3"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
@@ -22,13 +21,12 @@ var (
 	ErrMigrationFailed = errors.New("migration failed")
 )
 
-func EnsureMigrations(cfg config.DbConfig) error {
-	dbpath := cfg.Path
+func EnsureMigrations(dbpath string) error {
 
 	fs, err := iofs.New(migrationFS, migrationPath)
 	if err != nil {
 		return fmt.Errorf(
-			"unable to initialize migartionfs: %w: %w",
+			"unable to initialize migrationfs: %w: %w",
 			ErrMigrationFailed,
 			err,
 		)
@@ -43,7 +41,15 @@ func EnsureMigrations(cfg config.DbConfig) error {
 			err,
 		)
 	}
-	m.Up()
+
+	err = m.Up()
+	if err != nil && !errors.Is(err, migrate.ErrNoChange) {
+		return fmt.Errorf(
+			"failed to run migrations: %w: %w",
+			ErrMigrationFailed,
+			err,
+		)
+	}
 
 	return nil
 }

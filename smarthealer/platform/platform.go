@@ -42,11 +42,15 @@ func NewPlatformFromString(s string) Platform {
 }
 
 func (p Platform) MarshalJSON() ([]byte, error) {
-	return []byte(p.String()), nil
+	return []byte(`"` + p.String() + `"`), nil
 }
 
 func (p *Platform) UnmarshalJSON(b []byte) error {
-	*p = NewPlatformFromString(string(b))
-
+	// Remove quotes if present
+	s := string(b)
+	if len(s) >= 2 && s[0] == '"' && s[len(s)-1] == '"' {
+		s = s[1 : len(s)-1]
+	}
+	*p = NewPlatformFromString(s)
 	return nil
 }
