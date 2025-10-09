@@ -1,10 +1,9 @@
 import { SmartHealer, Platform, PageType, ComparisonMode } from 'smarthealer-js';
-import { SmartHealerConfig, ElementInfo, ElementContext } from './types';
+import { SmartHealerPluginConfig, ElementInfo, ElementContext } from './types';
 
 export class SmartHealerManager {
   private static instance: SmartHealerManager;
   private initialized = false;
-  private config?: SmartHealerConfig;
 
   private constructor() {}
 
@@ -15,17 +14,15 @@ export class SmartHealerManager {
     return SmartHealerManager.instance;
   }
 
-  public async initialize(config: SmartHealerConfig): Promise<void> {
+  public async initialize(config: SmartHealerPluginConfig): Promise<void> {
     if (this.initialized) {
       return;
     }
 
-    this.config = config;
-
     try {
       await SmartHealer.init({
         openai_key: config.openai_key,
-        sqlite_db_path: config.sqlite_db_path || this.getDefaultDbPath()
+        sqlite_db_path: config.sqlite_db_path || ''  // Pass empty string, Go will use default
       });
 
       this.initialized = true;
@@ -41,8 +38,23 @@ export class SmartHealerManager {
 
     try {
       const elementInfo = await this.buildElementInfo(context);
+      console.log('[SmartHealer] Calling resolveLocator with:', {
+        project_id: elementInfo.project_id,
+        context_id: elementInfo.context_id,
+        xpath: elementInfo.xpath,
+        platform: elementInfo.platform,
+        page_type: elementInfo.page_type
+      });
+
       const result = await SmartHealer.resolveLocator(elementInfo, {
         comparisionMode: ComparisonMode.Automatic
+      });
+
+      console.log('[SmartHealer] resolveLocator result:', {
+        success: result.success,
+        reason: result.reason,
+        hasContent: !!result.content,
+        content: result.content
       });
 
       if (result.success && result.content) {
@@ -51,7 +63,7 @@ export class SmartHealerManager {
 
       return null;
     } catch (error) {
-      console.warn('SmartHealer sync resolution failed:', error);
+      console.warn('[SmartHealer] sync resolution failed:', error);
       return null;
     }
   }
@@ -83,22 +95,48 @@ export class SmartHealerManager {
   }
 
   private async buildElementInfo(context: ElementContext): Promise<ElementInfo> {
-    const screenshot = context.screenshot || '';
     const pageSource = context.pageSource || '';
+    let platform: Platform;
+    let pageType: PageType;
+    let contextId: string;
+    let screenshot: string;
+
+    // Determine platform, page type, context_id, and screenshot based on context
+    if (context.isWebView) {
+      // WebView: Platform=Web, PageType=HTML, contextId=URL, no screenshot
+      platform = Platform.Web;
+      pageType = PageType.HTML;
+      contextId = context.currentUrl || '';
+      screenshot = '';
+    } else if (context.platformName?.toLowerCase() === 'android') {
+      // Android Native: Platform=Android, PageType=XML, contextId=activity, no screenshot
+      platform = Platform.Android;
+      pageType = PageType.XML;
+      contextId = context.currentActivity || '';
+      screenshot = '';
+    } else if (context.platformName?.toLowerCase() === 'ios') {
+      // iOS Native: Platform=iOS, PageType=XML, contextId=empty, screenshot required
+      platform = Platform.iOS;
+      pageType = PageType.XML;
+      contextId = '';
+      screenshot = context.screenshot || '';
+    } else {
+      // Fallback: detect from page source
+      platform = this.detectPlatform(context);
+      pageType = this.detectPageType(pageSource);
+      contextId = context.sessionId;
+      screenshot = context.screenshot || '';
+    }
 
     return {
-      project_id: this.generateProjectId(context.sessionId),
+      project_id: context.projectId,
       page_source: pageSource,
       b64_png: screenshot,
       xpath: this.convertLocatorToXPath(context.strategy),
-      context_id: context.sessionId,
-      platform: this.detectPlatform(context),
-      page_type: this.detectPageType(pageSource)
+      context_id: contextId,
+      platform: platform,
+      page_type: pageType
     };
-  }
-
-  private generateProjectId(sessionId: string): string {
-    return `appium-${sessionId}`;
   }
 
   private convertLocatorToXPath(strategy: { using: string; value: string }): string {

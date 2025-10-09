@@ -2,7 +2,7 @@
   "name": "smarthealer-appium-plugin",
   "version": "0.1.0",
   "description": "Appium plugin for SmartHealer - intelligent element locator resolution and healing",
-  "license": "ISC",
+  "license": "MIT",
   "author": "",
   "type": "commonjs",
   "main": "lib/plugin.js",
@@ -32,7 +32,7 @@
     "rimraf": "^5.0.0"
   },
   "peerDependencies": {
-    "appium": "^2.0.0"
+    "appium": "^3.0.0"
   },
   "engines": {
     "node": ">=16.0.0"

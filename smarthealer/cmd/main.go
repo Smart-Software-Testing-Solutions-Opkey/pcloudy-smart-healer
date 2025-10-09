@@ -91,8 +91,8 @@ func resolveLocatorAsync(cinfo C.Info, copt C.Options) C.Result {
 	return makeResult(true, "", "")
 }
 
-//export close
-func close() {
+//export closeSmartHealer
+func closeSmartHealer() {
 	sh.Close()
 }
 

@@ -19,7 +19,7 @@ export enum ComparisonMode {
 
 export interface Config {
   openai_key: string;
-  sqlite_db_path: string;
+  sqlite_db_path?: string;  // Optional - Go will use default if not provided
 }
 
 export interface Info {

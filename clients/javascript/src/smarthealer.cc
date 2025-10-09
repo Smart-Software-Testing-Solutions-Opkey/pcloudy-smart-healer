@@ -16,18 +16,31 @@ Napi::Object ResultToJS(Napi::Env env, const Result& result) {
     return obj;
 }
 
+// Helper to allocate persistent C strings
+static char* AllocateCString(const std::string& str) {
+    if (str.empty()) {
+        return nullptr;
+    }
+    char* result = new char[str.length() + 1];
+    strcpy(result, str.c_str());
+    return result;
+}
+
 // Convert JavaScript object to Config struct
 Config JSToConfig(const Napi::Object& jsConfig) {
     Config config = {nullptr, nullptr};
 
     if (jsConfig.Has("openai_key")) {
         std::string openaiKey = jsConfig.Get("openai_key").As<Napi::String>().Utf8Value();
-        config.openai_key = openaiKey.c_str();
+        config.openai_key = AllocateCString(openaiKey);
     }
 
     if (jsConfig.Has("sqlite_db_path")) {
         std::string dbPath = jsConfig.Get("sqlite_db_path").As<Napi::String>().Utf8Value();
-        config.sqlite_db_path = dbPath.c_str();
+        // Only set if not empty, otherwise leave as nullptr for Go to use default
+        if (!dbPath.empty()) {
+            config.sqlite_db_path = AllocateCString(dbPath);
+        }
     }
 
     return config;
@@ -39,27 +52,27 @@ Info JSToInfo(const Napi::Object& jsInfo) {
 
     if (jsInfo.Has("project_id")) {
         std::string projectId = jsInfo.Get("project_id").As<Napi::String>().Utf8Value();
-        info.project_id = projectId.c_str();
+        info.project_id = AllocateCString(projectId);
     }
 
     if (jsInfo.Has("page_source")) {
         std::string pageSource = jsInfo.Get("page_source").As<Napi::String>().Utf8Value();
-        info.page_source = pageSource.c_str();
+        info.page_source = AllocateCString(pageSource);
     }
 
     if (jsInfo.Has("b64_png")) {
         std::string b64Png = jsInfo.Get("b64_png").As<Napi::String>().Utf8Value();
-        info.b64_png = b64Png.c_str();
+        info.b64_png = AllocateCString(b64Png);
     }
 
     if (jsInfo.Has("xpath")) {
         std::string xpath = jsInfo.Get("xpath").As<Napi::String>().Utf8Value();
-        info.xpath = xpath.c_str();
+        info.xpath = AllocateCString(xpath);
     }
 
     if (jsInfo.Has("context_id")) {
         std::string contextId = jsInfo.Get("context_id").As<Napi::String>().Utf8Value();
-        info.context_id = contextId.c_str();
+        info.context_id = AllocateCString(contextId);
     }
 
     if (jsInfo.Has("platform")) {
@@ -86,6 +99,42 @@ Options JSToOptions(const Napi::Object& jsOptions) {
     return options;
 }
 
+// Helper to free Config strings
+void FreeConfig(Config& config) {
+    if (config.openai_key) {
+        delete[] config.openai_key;
+        config.openai_key = nullptr;
+    }
+    if (config.sqlite_db_path) {
+        delete[] config.sqlite_db_path;
+        config.sqlite_db_path = nullptr;
+    }
+}
+
+// Helper to free Info strings
+void FreeInfo(Info& info) {
+    if (info.project_id) {
+        delete[] info.project_id;
+        info.project_id = nullptr;
+    }
+    if (info.page_source) {
+        delete[] info.page_source;
+        info.page_source = nullptr;
+    }
+    if (info.b64_png) {
+        delete[] info.b64_png;
+        info.b64_png = nullptr;
+    }
+    if (info.xpath) {
+        delete[] info.xpath;
+        info.xpath = nullptr;
+    }
+    if (info.context_id) {
+        delete[] info.context_id;
+        info.context_id = nullptr;
+    }
+}
+
 // Wrapper for initSmartHealer
 Napi::Value InitSmartHealer(const Napi::CallbackInfo& info) {
     Napi::Env env = info.Env();
@@ -104,7 +153,8 @@ Napi::Value InitSmartHealer(const Napi::CallbackInfo& info) {
         Result result = initSmartHealer(config);
         Napi::Object jsResult = ResultToJS(env, result);
 
-        // Clean up the result
+        // Clean up allocated strings and result
+        FreeConfig(config);
         freeResult(result);
 
         return jsResult;
@@ -135,7 +185,8 @@ Napi::Value ResolveLocator(const Napi::CallbackInfo& info) {
         Result result = resolveLocator(infoStruct, optionsStruct);
         Napi::Object jsResult = ResultToJS(env, result);
 
-        // Clean up the result
+        // Clean up allocated strings and result
+        FreeInfo(infoStruct);
         freeResult(result);
 
         return jsResult;
@@ -166,7 +217,8 @@ Napi::Value ResolveLocatorAsync(const Napi::CallbackInfo& info) {
         Result result = resolveLocatorAsync(infoStruct, optionsStruct);
         Napi::Object jsResult = ResultToJS(env, result);
 
-        // Clean up the result
+        // Clean up allocated strings and result
+        FreeInfo(infoStruct);
         freeResult(result);
 
         return jsResult;
@@ -176,9 +228,9 @@ Napi::Value ResolveLocatorAsync(const Napi::CallbackInfo& info) {
     }
 }
 
-// Wrapper for close
+// Wrapper for closeSmartHealer
 Napi::Value Close(const Napi::CallbackInfo& info) {
-    close();
+    closeSmartHealer();
     return info.Env().Undefined();
 }
 

@@ -123,7 +123,7 @@ extern "C" {
 extern Result initSmartHealer(Config conf);
 extern Result resolveLocator(Info cinfo, Options copt);
 extern Result resolveLocatorAsync(Info cinfo, Options copt);
-extern void close(void);
+extern void closeSmartHealer(void);
 extern void freeResult(Result r);
 
 #ifdef __cplusplus

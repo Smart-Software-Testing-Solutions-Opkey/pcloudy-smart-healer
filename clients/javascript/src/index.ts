@@ -41,14 +41,20 @@ export class SmartHealer {
   public static init(config: Config): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
-        if (!config.openai_key || !config.sqlite_db_path) {
+        if (!config.openai_key) {
           throw new SmartHealerError(
-            'Missing required configuration: openai_key and sqlite_db_path are required',
+            'Missing required configuration: openai_key is required',
             'INVALID_CONFIG'
           );
         }
 
-        const result = native.initSmartHealer(config);
+        // Pass config with empty string for sqlite_db_path if not provided (Go will use default)
+        const initConfig = {
+          openai_key: config.openai_key,
+          sqlite_db_path: config.sqlite_db_path || ''
+        };
+
+        const result = native.initSmartHealer(initConfig);
 
         if (result.success) {
           SmartHealer._initialized = true;
@@ -166,7 +172,9 @@ export class SmartHealer {
 
   // Validation helpers
   private static validateInfo(info: Info): void {
-    const required = ['project_id', 'page_source', 'b64_png', 'xpath', 'context_id'];
+    // b64_png and context_id can be empty strings (depending on platform)
+    // Only validate that required fields exist, not that they're non-empty
+    const required = ['project_id', 'page_source', 'xpath'];
     const missing = required.filter(field => !info[field as keyof Info]);
 
     if (missing.length > 0) {
@@ -174,6 +182,14 @@ export class SmartHealer {
         `Missing required Info fields: ${missing.join(', ')}`,
         'INVALID_INFO'
       );
+    }
+
+    // Check that fields exist (can be empty strings)
+    if (info.b64_png === undefined || info.b64_png === null) {
+      throw new SmartHealerError('b64_png field is required (can be empty string)', 'INVALID_INFO');
+    }
+    if (info.context_id === undefined || info.context_id === null) {
+      throw new SmartHealerError('context_id field is required (can be empty string)', 'INVALID_INFO');
     }
 
     if (!Object.values(Platform).includes(info.platform)) {
