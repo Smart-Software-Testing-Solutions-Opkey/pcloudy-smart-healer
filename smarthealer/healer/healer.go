@@ -160,13 +160,10 @@ func (h *Healer) handleExistingEntry(ctx context.Context, info LocatorInfo, cand
 
 	filelog.Info("Generated healed locator: %s, saving as new page variant", locator)
 
-	// Register as a NEW page with the healed locator and current page source
-	// This saves the page source where the healed locator was found
-	// Update the info with the healed locator
-	healedInfo := info
-	healedInfo.XPath = locator
-
-	entry, err := h.registerPageAndLocator(ctx, healedInfo, u)
+	// Register as a NEW page variant
+	// IMPORTANT: Store the ORIGINAL locator (info.XPath) in the page for future retrieval
+	// Store the HEALED locator separately so it can be returned when the original is sent again
+	entry, err := h.registerPageAndLocatorWithHealed(ctx, info, locator, u)
 	if err != nil {
 		return "", fmt.Errorf("handleExistingEntry: failed to register healed page and locator: %w", err)
 	}
@@ -261,10 +258,14 @@ type EntryId struct {
 }
 
 func (h *Healer) registerPageAndLocator(ctx context.Context, info LocatorInfo, u *store.UnitOfWork) (*EntryId, error) {
+	return h.registerPageAndLocatorWithHealed(ctx, info, info.XPath, u)
+}
+
+func (h *Healer) registerPageAndLocatorWithHealed(ctx context.Context, info LocatorInfo, healedLocator string, u *store.UnitOfWork) (*EntryId, error) {
 	pageId, err := u.Pages.Add(ctx,
 		store.PageEntry{
 			PageSource: info.PageSource,
-			Locator:    info.XPath,
+			Locator:    info.XPath, // Store ORIGINAL locator for retrieval
 			B64Png:     info.B64Png,
 			ContextId:  info.ContextId,
 			ProjectId:  info.ProjectId,
@@ -278,7 +279,7 @@ func (h *Healer) registerPageAndLocator(ctx context.Context, info LocatorInfo, u
 	locatorId, err := u.Locators.Add(ctx,
 		store.LocatorEntry{
 			PageId:      pageId,
-			Locator:     info.XPath,
+			Locator:     healedLocator, // Store HEALED locator as the working solution
 			Description: "",
 		})
 	if err != nil {
