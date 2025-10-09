@@ -22,8 +22,10 @@
     "clean": "rimraf dist build",
     "dev": "tsc --watch"
   },
+  "dependencies": {
+    "node-addon-api": "^8.5.0"
+  },
   "devDependencies": {
-    "node-addon-api": "^8.5.0",
     "typescript": "^5.0.0",
     "@types/node": "^20.0.0",
     "rimraf": "^5.0.0"

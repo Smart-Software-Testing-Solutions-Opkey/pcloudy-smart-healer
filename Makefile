@@ -38,19 +38,25 @@ build:
 	@echo "Building SmartHealer for $(OS_NAME)-$(ARCH_NAME)"
 	@echo "=========================================="
 	@echo ""
-	@echo "Step 1/4: Building Go core library..."
+	@echo "Step 1/6: Building Go core library..."
 	@cd $(GO_DIR) && $(MAKE) build-static
 	@echo ""
-	@echo "Step 2/4: Copying artifacts to JavaScript client..."
+	@echo "Step 2/6: Copying artifacts to JavaScript client..."
 	@mkdir -p $(JS_CLIENT_DIR)/lib/$(OS_NAME)-$(ARCH_NAME)
 	@cp $(GO_DIR)/libsmarthealer.a $(JS_CLIENT_DIR)/lib/$(OS_NAME)-$(ARCH_NAME)/libsmarthealer.a
 	@cp $(GO_DIR)/libsmarthealer.h $(JS_CLIENT_DIR)/includes/libsmarthealer.h
 	@echo "Artifacts copied successfully"
 	@echo ""
-	@echo "Step 3/4: Building JavaScript client..."
+	@echo "Step 3/6: Installing JavaScript client dependencies (with native addon build)..."
+	@cd $(JS_CLIENT_DIR) && npm install
+	@echo ""
+	@echo "Step 4/6: Building JavaScript client (TypeScript + native addon)..."
 	@cd $(JS_CLIENT_DIR) && $(MAKE) build
 	@echo ""
-	@echo "Step 4/4: Building Appium plugin..."
+	@echo "Step 5/6: Installing Appium plugin dependencies..."
+	@cd $(APPIUM_PLUGIN_DIR) && npm install
+	@echo ""
+	@echo "Step 6/6: Building Appium plugin..."
 	@cd $(APPIUM_PLUGIN_DIR) && $(MAKE) build
 	@echo ""
 	@echo "=========================================="

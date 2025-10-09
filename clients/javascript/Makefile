@@ -6,7 +6,10 @@ all: build
 # Build the JavaScript client (TypeScript compilation + native addon)
 build:
 	@echo "Building JavaScript client..."
+	@echo "Step 1/2: Compiling TypeScript..."
 	@npm run build
+	@echo "Step 2/2: Building native addon..."
+	@node-gyp rebuild
 	@echo "JavaScript client built successfully"
 
 # Install dependencies and build native addon
@@ -23,5 +26,5 @@ clean:
 	@rm -rf dist/
 	@echo "Clean completed"
 
-# Rebuild
-rebuild: clean build
+# Rebuild (clean + install deps + build)
+rebuild: clean install build
